@@ -35,7 +35,7 @@ jobs:
     name: Emulator tests (debug + release APK)
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Enable KVM
@@ -70,8 +70,8 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           # Keep full logs as artifacts; print them without stack-frame noise.
           script: |
-            flutter test integration_test/app_test.dart -d emulator-5554 --reporter expanded > integration.log 2>&1; status=$?; grep -vE '^(#[0-9]+ |\(elided|── callback)' integration.log | tail -n 250; exit $status
-            tool/ci/smoke_release.sh hue-lock.apk
+            timeout 900 flutter test integration_test/app_test.dart -d emulator-5554 --reporter expanded > integration.log 2>&1; status=$?; [ $status -eq 124 ] && echo '::error::integration test timed out after 15 min'; grep -vE '^(#[0-9]+ |\(elided|── callback)' integration.log | tail -n 250; exit $status
+            timeout 300 tool/ci/smoke_release.sh hue-lock.apk
       - name: Upload test logs
         if: always()
         uses: actions/upload-artifact@v4
