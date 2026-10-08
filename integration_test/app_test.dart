@@ -34,6 +34,22 @@ Future<void> waitMs(WidgetTester tester, int ms) async {
   }
 }
 
+/// Waits until the run is live. A slow device (e.g. a CI emulator on its
+/// first frames) can stall for over 0.5 s, which the game treats as a pause
+/// and answers with a short countdown.
+Future<void> waitPlaying(WidgetTester tester, GameEngine e) async {
+  if (e.phase != GamePhase.playing) {
+    debugPrint('waiting for play, phase is ${e.phase}');
+  }
+  final clock = Stopwatch()..start();
+  while (e.phase != GamePhase.playing) {
+    if (clock.elapsed > const Duration(seconds: 30)) {
+      throw TestFailure('run never resumed, phase is ${e.phase}');
+    }
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+}
+
 /// Seconds until the pointer crosses the center of the current target.
 double untilTargetCenter(GameEngine e) {
   final r = e.round!;
@@ -69,8 +85,8 @@ void main() {
     await tester.tapAt(empty);
     await waitFor(tester, find.text('TAP TO PLAY'), present: false);
     final e = engine();
-    expect(e.phase, GamePhase.playing);
     for (var i = 0; i < 10; i++) {
+      await waitPlaying(tester, e);
       final wait = untilTargetCenter(e);
       e.tap(e.time + wait);
       expect(e.phase, GamePhase.playing, reason: 'round $i should be a hit');
@@ -81,6 +97,7 @@ void main() {
     await waitFor(tester, find.text('${e.score}'));
 
     // 2. Miss on purpose: a new round's target is never at the pointer.
+    await waitPlaying(tester, e);
     await tester.tapAt(empty);
     await waitFor(tester, find.text('TAP TO RETRY'));
     expect(find.text('CONTINUE'), findsOneWidget);
@@ -90,6 +107,7 @@ void main() {
     await tester.tapAt(empty);
     await waitFor(tester, find.text('TAP TO RETRY'), present: false);
     expect(engine().score, 0);
+    await waitPlaying(tester, engine());
     await tester.tapAt(empty);
     await waitFor(tester, find.text('TAP TO RETRY'));
 
@@ -116,10 +134,12 @@ void main() {
 
     await tester.tapAt(empty);
     await waitFor(tester, find.text('TAP TO PLAY'), present: false);
+    await waitPlaying(tester, engine());
     final wait = untilTargetCenter(engine());
     engine().tap(engine().time + wait);
     expect(engine().level, 1);
     await waitMs(tester, (wait * 1000).round() + 40);
+    await waitPlaying(tester, engine());
     await tester.tapAt(empty);
     await waitFor(tester, find.text('TAP TO RETRY'));
   });
