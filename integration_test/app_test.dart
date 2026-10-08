@@ -10,6 +10,20 @@ import 'package:hue_lock/main.dart' as app;
 import 'package:hue_lock/ui/game_screen.dart';
 import 'package:integration_test/integration_test.dart';
 
+/// Pumps one real frame, failing loudly (instead of hanging forever) if the
+/// device stops producing frames, e.g. because the app was backgrounded.
+Future<void> pumpFrame(WidgetTester tester, [int ms = 50]) {
+  return tester
+      .pump(Duration(milliseconds: ms))
+      .timeout(
+        const Duration(seconds: 20),
+        onTimeout: () => throw TestFailure(
+          'No frame for 20 s; app lifecycle is '
+          '${WidgetsBinding.instance.lifecycleState}',
+        ),
+      );
+}
+
 /// Pumps real frames until [finder] (dis)appears.
 Future<void> waitFor(
   WidgetTester tester,
@@ -19,7 +33,7 @@ Future<void> waitFor(
 }) async {
   final clock = Stopwatch()..start();
   while (clock.elapsed < timeout) {
-    await tester.pump(const Duration(milliseconds: 50));
+    await pumpFrame(tester);
     if (finder.evaluate().isNotEmpty == present) return;
   }
   throw TestFailure(
@@ -31,7 +45,7 @@ Future<void> waitFor(
 Future<void> waitMs(WidgetTester tester, int ms) async {
   final clock = Stopwatch()..start();
   while (clock.elapsedMilliseconds < ms) {
-    await tester.pump(const Duration(milliseconds: 16));
+    await pumpFrame(tester, 16);
   }
 }
 
@@ -47,7 +61,7 @@ Future<void> waitPlaying(WidgetTester tester, GameEngine e) async {
     if (clock.elapsed > const Duration(seconds: 30)) {
       throw TestFailure('run never resumed, phase is ${e.phase}');
     }
-    await tester.pump(const Duration(milliseconds: 50));
+    await pumpFrame(tester);
   }
 }
 

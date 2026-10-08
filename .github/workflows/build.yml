@@ -36,6 +36,10 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      # A resident Gradle daemon (up to 8 GB heap, see android/gradle.properties)
+      # starves the emulator. Use single-use daemons that exit after each build.
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dkotlin.compiler.execution.strategy=in-process
     steps:
       - uses: actions/checkout@v4
       - name: Enable KVM
@@ -59,7 +63,12 @@ jobs:
         run: |
           flutter build apk --release --build-number ${{ github.run_number }}
           cp build/app/outputs/flutter-apk/app-release.apk hue-lock.apk
-      - name: Test on emulator (integration test + release APK smoke test)
+      - name: Free memory for the emulator
+        run: |
+          (cd android && ./gradlew --stop) || true
+          pkill -f KotlinCompileDaemon || true
+          free -m
+      - name: Test on emulator (release APK launch + full game flow)
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -68,10 +77,11 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
-          # Keep full logs as artifacts; print them without stack-frame noise.
+          # Release APK first (what users install), then the full game flow.
+          # Logs are printed without stack-frame noise; full logs are artifacts.
           script: |
-            timeout 900 flutter test integration_test/app_test.dart -d emulator-5554 --reporter expanded > integration.log 2>&1; status=$?; [ $status -eq 124 ] && echo '::error::integration test timed out after 15 min'; grep -vE '^(#[0-9]+ |\(elided|── callback)' integration.log | tail -n 250; exit $status
             timeout 300 tool/ci/smoke_release.sh hue-lock.apk
+            timeout 900 flutter test integration_test/app_test.dart -d emulator-5554 --reporter expanded > integration.log 2>&1; status=$?; [ $status -eq 124 ] && echo '::error::integration test timed out after 15 min'; grep -vE '^(#[0-9]+ |\(elided|── callback)' integration.log | tail -n 250; exit $status
       - name: Upload test logs
         if: always()
         uses: actions/upload-artifact@v4
