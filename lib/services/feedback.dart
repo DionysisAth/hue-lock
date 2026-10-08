@@ -15,7 +15,7 @@ class AudioService {
   final bool enabled;
 
   static const perfectNotes = 8;
-  final _pools = <String, AudioPool>{};
+  final _pools = <String, _SfxPool>{};
   bool muted = false;
   double volume = 0.8;
 
@@ -42,11 +42,7 @@ class AudioService {
       };
       await Future.wait(
         entries.entries.map((e) async {
-          _pools[e.key] = await AudioPool.createFromAsset(
-            path: e.value,
-            maxPlayers: 3,
-            playerMode: PlayerMode.lowLatency,
-          );
+          _pools[e.key] = await _SfxPool.load(e.value, voices: 3);
         }),
       );
     } catch (e) {
@@ -62,12 +58,43 @@ class AudioService {
 
   void _play(String key) {
     if (!enabled || muted || volume <= 0) return;
-    final pool = _pools[key];
-    if (pool == null) return;
-    pool.start(volume: volume).catchError((Object e) {
+    _pools[key]?.play(volume).catchError((Object e) {
       debugPrint('Sfx $key failed: $e');
-      return () async {};
     });
+  }
+}
+
+/// A few preloaded players per sound, used round-robin so overlapping hits
+/// never cut each other off.
+///
+/// audioplayers' own AudioPool gives every player a per-frame position
+/// updater; in low-latency mode the "completed" event never arrives, so those
+/// updaters would poll the platform every frame forever. We never need the
+/// playback position, so it is switched off.
+class _SfxPool {
+  _SfxPool(this._players);
+
+  final List<AudioPlayer> _players;
+  int _next = 0;
+
+  static Future<_SfxPool> load(String asset, {required int voices}) async {
+    final players = <AudioPlayer>[];
+    for (var i = 0; i < voices; i++) {
+      final p = AudioPlayer()..positionUpdater = null;
+      await p.setPlayerMode(PlayerMode.lowLatency);
+      await p.setReleaseMode(ReleaseMode.stop);
+      await p.setSource(AssetSource(asset));
+      players.add(p);
+    }
+    return _SfxPool(players);
+  }
+
+  Future<void> play(double volume) async {
+    final p = _players[_next];
+    _next = (_next + 1) % _players.length;
+    await p.stop();
+    await p.setVolume(volume);
+    await p.resume();
   }
 }
 

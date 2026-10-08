@@ -2,7 +2,7 @@
 // (audio, haptics, shared_preferences, ads SDK, billing) wired up by main().
 //
 //   flutter test integration_test -d <device>
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hue_lock/core/angles.dart';
 import 'package:hue_lock/game/game_engine.dart';
@@ -143,5 +143,10 @@ void main() {
     await waitPlaying(tester, engine());
     await tester.tapAt(empty);
     await waitFor(tester, find.text('TAP TO RETRY'));
+
+    // Unmount so the game ticker and animations are disposed before the
+    // test framework checks for leftover frame callbacks.
+    await tester.pumpWidget(const SizedBox());
+    await waitMs(tester, 500);
   });
 }
