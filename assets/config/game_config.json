@@ -1,0 +1,76 @@
+{
+  "_comment": "All gameplay tuning lives here (design doc 7 and 14.3). Angles are in degrees, times in milliseconds. 'level' = rounds cleared in the current run; with only Good hits it equals the score.",
+
+  "timing": {
+    "graceMs": 22,
+    "perfectFraction": 0.2,
+    "perfectMinWindowMs": 34,
+    "nearMissMs": 90,
+    "minReactionMs": 380,
+    "firstRoundLeadMs": 650,
+    "minZoneWindowMs": 75,
+    "maxTapLookbackMs": 120,
+    "deathFreezeMs": 380,
+    "restartLockoutMs": 120,
+    "continueCountdownMs": 1200
+  },
+
+  "pointer": {
+    "baseSpeedDegPerSec": 115,
+    "speedPerLevel": 2.1,
+    "maxSpeedDegPerSec": 330
+  },
+
+  "zone": {
+    "startSizeDeg": 64,
+    "sizePerLevel": -0.46,
+    "minSizeDeg": 17,
+    "otherZoneSizeFactor": 1.0,
+    "minGapDeg": 9,
+    "decoyGapDeg": [4, 9],
+    "maxLeadFraction": 0.85
+  },
+
+  "wave": {
+    "period": 6,
+    "breatherLevelDrop": 7
+  },
+
+  "stages": [
+    { "fromLevel": 0,   "name": "warmup",    "colors": [1, 1], "reverse": 0.0, "decoys": 0, "rotate": 0.0 },
+    { "fromLevel": 25,  "name": "two-color", "colors": [2, 2], "reverse": 0.0, "decoys": 0, "rotate": 0.0 },
+    { "fromLevel": 40,  "name": "reverse",   "colors": [2, 2], "reverse": 1.0, "decoys": 0, "rotate": 0.0 },
+    { "fromLevel": 60,  "name": "decoys",    "colors": [3, 4], "reverse": 1.0, "decoys": 1, "rotate": 0.0 },
+    { "fromLevel": 80,  "name": "rotate",    "colors": [3, 4], "reverse": 1.0, "decoys": 1, "rotate": 1.0 },
+    { "fromLevel": 100, "name": "mixed",     "colors": [2, 4], "reverse": 0.5, "decoys": 1, "rotate": 0.6 }
+  ],
+
+  "ringRotation": {
+    "minFractionOfPointer": 0.12,
+    "maxFractionOfPointer": 0.32
+  },
+
+  "scoring": {
+    "goodPoints": 1,
+    "perfectPoints": 3,
+    "perfectsPerMultiplierStep": 3,
+    "maxMultiplier": 5
+  },
+
+  "coins": {
+    "scorePerCoin": 4,
+    "coinZoneChance": 0.08,
+    "coinZoneMinLevel": 5,
+    "coinZoneBonus": 5
+  },
+
+  "continue": {
+    "maxPerRun": 1,
+    "coinCost": 120
+  },
+
+  "ads": {
+    "interstitialEveryRuns": 4,
+    "noAdsFirstRuns": 3
+  }
+}
