@@ -43,3 +43,5 @@ alive || fail "release app died while playing"
 timeout 20 adb exec-out screencap -p > "$OUT/release.png"
 timeout 30 adb logcat -d -v time > "$OUT/logcat.log"
 echo "Release app launched and survived play."
+# Leave a clean device for the next test (it installs a debug build).
+timeout 60 adb uninstall "$PKG" > /dev/null
