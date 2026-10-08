@@ -32,7 +32,7 @@ jobs:
       - run: flutter test
 
   emulator:
-    name: Integration test (Android emulator)
+    name: Emulator tests (debug + release APK)
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -54,7 +54,12 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: Run integration test on emulator
+      # Build the exact APK that gets published, so the emulator can test it.
+      - name: Build release APK
+        run: |
+          flutter build apk --release --build-number ${{ github.run_number }}
+          cp build/app/outputs/flutter-apk/app-release.apk hue-lock.apk
+      - name: Test on emulator (integration test + release APK smoke test)
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -63,47 +68,37 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
-          # Keep the full log as an artifact; print it without stack-frame noise.
+          # Keep full logs as artifacts; print them without stack-frame noise.
           script: |
             flutter test integration_test/app_test.dart -d emulator-5554 --reporter expanded > integration.log 2>&1; status=$?; grep -vE '^(#[0-9]+ |\(elided|── callback)' integration.log | tail -n 250; exit $status
-      - name: Upload integration log
+            tool/ci/smoke_release.sh hue-lock.apk
+      - name: Upload test logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: integration-log
-          path: integration.log
+          name: emulator-logs
+          path: |
+            integration.log
+            ci-out/
           if-no-files-found: ignore
-
-  apk:
-    name: Build release APK
-    needs: [test, emulator]
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-          cache: gradle
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-      - run: flutter pub get
-      - name: Build APK
-        run: |
-          flutter build apk --release --build-number ${{ github.run_number }}
-          cp build/app/outputs/flutter-apk/app-release.apk hue-lock.apk
       - uses: actions/upload-artifact@v4
         with:
           name: hue-lock-apk
           path: hue-lock.apk
+
+  publish:
+    name: Publish APK
+    needs: [test, emulator]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: hue-lock-apk
       - name: Publish download (GitHub Release)
-        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
@@ -112,8 +107,9 @@ jobs:
           prerelease: true
           files: hue-lock.apk
           body: |
-            Test build from ${{ github.sha }}. Unit tests and the Android
-            emulator integration test passed.
+            Test build from ${{ github.sha }}. Unit tests, the Android
+            emulator integration test and a launch test of this exact APK
+            passed.
 
             Install: download `hue-lock.apk` on an Android 7.0+ phone and
             allow "install unknown apps". Signed with a debug key and uses
