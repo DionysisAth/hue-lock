@@ -23,6 +23,9 @@ class PlayerProfile {
   bool colorblind = false;
   bool adsRemoved = false;
 
+  /// Mechanics already explained to this player (see `intros`).
+  Set<String> seenIntros = {};
+
   Map<String, dynamic> toJson() => {
     'bestScore': bestScore,
     'coins': coins,
@@ -39,6 +42,7 @@ class PlayerProfile {
     'haptics': haptics,
     'colorblind': colorblind,
     'adsRemoved': adsRemoved,
+    'seenIntros': seenIntros.toList(),
   };
 
   factory PlayerProfile.fromJson(Map<String, dynamic> j) {
@@ -62,7 +66,10 @@ class PlayerProfile {
       ..musicVolume = (j['musicVolume'] as num?)?.toDouble() ?? 0.6
       ..haptics = get('haptics', true)
       ..colorblind = get('colorblind', false)
-      ..adsRemoved = get('adsRemoved', false);
+      ..adsRemoved = get('adsRemoved', false)
+      ..seenIntros = {
+        ...((j['seenIntros'] as List?) ?? const []).whereType<String>(),
+      };
   }
 }
 

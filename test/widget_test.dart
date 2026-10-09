@@ -36,6 +36,8 @@ void main() {
     expect(find.text('TAP TO PLAY'), findsNothing);
     expect(find.text('0'), findsOneWidget);
     expect(s.profile.profile.totalRuns, 1);
+    // The first-run explanation is remembered.
+    expect(s.profile.profile.seenIntros, contains('intro'));
   });
 
   testWidgets('shop buys and equips a skin with coins', (tester) async {
@@ -67,7 +69,10 @@ void main() {
   });
 
   testWidgets('game over screen appears after a miss', (tester) async {
-    final s = fakeServices();
+    // A returning player: no first-run explanation pause.
+    final s = fakeServices(
+      profile: PlayerProfile()..seenIntros.addAll(['intro']),
+    );
     await tester.pumpWidget(HueLockApp(services: s));
     await tester.pump();
     // Start, then tap straight away: the first target is always well ahead

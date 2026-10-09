@@ -42,6 +42,17 @@ This repository implements its **MVP milestone** (design doc section 15).
 - **Adaptive music.** Four stacked layers build with the run, Fever plays
   the full mix, and a miss cuts it to silence.
 
+- **Time to react.** Nothing new ever starts under the pointer's nose. The
+  round freezes behind a banner in these cases:
+  - Before every NOT and split round (1 s).
+  - After a shield save (1 s).
+  - The first time a player ever meets a mechanic (2.4 s, with a one-line
+    explanation). This includes the very first run. These intros are
+    remembered per player.
+  - A split's second color is at least 650 ms behind the first, or it is due
+    on the next pass.
+  - Ghost zones always start visible.
+
 Everything above is tunable in `assets/config/game_config.json`.
 
 ## Engine

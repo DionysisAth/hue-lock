@@ -32,6 +32,27 @@ String worldName(int world) {
   return world >= worldNames.length ? '$name+' : name;
 }
 
+/// First-time explanations, by mechanic. Shown with a pause the first time a
+/// player ever meets each one (see `announce` in the config).
+const intros = <String, (String, String)>{
+  'intro': ('TAP ON ITS COLOR', 'before the fuse around the ball runs out'),
+  'boss': ('BOSS ROUND', 'watch the colors, then hit them in order'),
+  'not': ('NOT!', 'hit any color except this one'),
+  'split': ('SPLIT', 'left color first, then right, in one lap'),
+  'ghost': ('GHOST', 'zones blink: remember where they are'),
+  'surge': ('SURGE', 'the pointer speeds up and slows down'),
+  'spin': ('SPIN', 'the ring turns too'),
+  'reverse': ('REVERSE', 'the pointer flips after each hit'),
+  'greedy': ('GREEDY', 'thin gold zone = +5, or play it safe'),
+  'powerup': ('POWER-UP', 'hit the target to collect it'),
+};
+
+/// Mechanics that change the rules: they also get a short pause every time.
+const _alwaysPause = {'not', 'split'};
+
+/// Optional extras: explained once, but never pause the game.
+const _noPause = {'greedy', 'powerup'};
+
 sealed class GameEvent {
   const GameEvent();
 }
@@ -89,6 +110,13 @@ class SetClearedEvent extends GameEvent {
 class BossEvent extends GameEvent {
   const BossEvent({required this.cleared});
   final bool cleared;
+}
+
+/// The player met a mechanic for the first time (persist it so the long
+/// explanation is shown only once).
+class IntroSeenEvent extends GameEvent {
+  const IntroSeenEvent(this.name);
+  final String name;
 }
 
 class WorldEvent extends GameEvent {
@@ -199,6 +227,12 @@ class GameEngine extends ChangeNotifier {
   double _countdownLeft = 0;
   double _countdownTotal = 0;
   bool _bossPreview = false;
+  bool _countdownNumber = false;
+  bool _bossGoShown = false;
+  double _bossIntro = 0;
+
+  /// Mechanics this player has already had explained (persisted by the UI).
+  final seen = <String>{};
 
   /// Pointer position shown while idling on the home screen.
   double _idleAngle = 0;
@@ -209,13 +243,31 @@ class GameEngine extends ChangeNotifier {
   /// True while a boss round shows its color sequence.
   bool get bossPreview => phase == GamePhase.countdown && _bossPreview;
 
+  /// Whether the frozen countdown shows "3-2-1" (continue / app pause) or
+  /// is a silent hold behind a banner.
+  bool get showCountdownNumber =>
+      phase == GamePhase.countdown && _countdownNumber;
+
   /// During a boss preview: index into the sequence being shown, or -1
-  /// in the short gap after it.
+  /// during the intro, the gaps between colors and the final "GO" pause.
   int get bossPreviewIndex {
     if (!bossPreview) return -1;
-    final i = ((_countdownTotal - _countdownLeft) / config.boss.previewPerColor)
-        .floor();
-    return i < round!.spec.ballColors.length ? i : -1;
+    final b = config.boss;
+    final e = _countdownTotal - _countdownLeft - _bossIntro;
+    if (e < 0) return -1;
+    final slot = b.previewPerColor + b.previewGap;
+    final i = (e / slot).floor();
+    if (i >= round!.spec.ballColors.length) return -1;
+    return e - i * slot < b.previewPerColor ? i : -1;
+  }
+
+  /// Boss preview finished showing colors (the "GO" pause).
+  bool get _bossInGo {
+    final b = config.boss;
+    final shown =
+        _bossIntro +
+        round!.spec.ballColors.length * (b.previewPerColor + b.previewGap);
+    return _countdownTotal - _countdownLeft >= shown;
   }
 
   bool get canContinue =>
@@ -273,8 +325,9 @@ class GameEngine extends ChangeNotifier {
     _newSet();
 
     final pointer = round?.pointerAngleAt(time) ?? _idleAngle;
-    _startRound(pointer: pointer, ring: 0, dir: 1, t: time, isFirst: true);
+    // Playing first: the first round may immediately freeze behind an intro.
     _setPhase(GamePhase.playing);
+    _startRound(pointer: pointer, ring: 0, dir: 1, t: time, isFirst: true);
     _emit(RunStarted(this.seed));
   }
 
@@ -298,8 +351,17 @@ class GameEngine extends ChangeNotifier {
         // Freeze the round: shifting its start keeps every angle constant.
         round?.startTime += dt;
         _countdownLeft -= dt;
+        if (_bossPreview && !_bossGoShown && _bossInGo) {
+          _bossGoShown = true;
+          effects.banner = Announcement(
+            'GO!',
+            subtitle: 'hit them in order',
+            life: config.boss.goDelay + 0.6,
+          );
+        }
         if (_countdownLeft <= 0) {
           _bossPreview = false;
+          _countdownNumber = false;
           _setPhase(GamePhase.playing);
         }
       case GamePhase.playing:
@@ -570,20 +632,81 @@ class GameEngine extends ChangeNotifier {
     );
     round = r;
     _armStep(r, t);
+    _announce(r, dir, isFirst: isFirst);
+  }
+
+  /// Freezes the round behind a banner when it brings something the player
+  /// cannot be expected to react to instantly: a boss sequence, a rule
+  /// change (NOT / split) or a mechanic they have never seen.
+  void _announce(ActiveRound r, int previousDir, {required bool isFirst}) {
+    final spec = r.spec;
+    final a = config.announce;
     if (spec.kind == RoundKind.boss) {
-      // Show the sequence, then go.
-      _bossPreview = true;
-      _countdownTotal =
-          spec.ballColors.length * config.boss.previewPerColor + 0.45;
-      _countdownLeft = _countdownTotal;
+      final firstBoss = !seen.contains('boss');
+      _markSeen('boss');
+      // The first boss ever gets a longer intro to read the explanation.
+      _bossIntro = config.boss.intro + (firstBoss ? 1.0 : 0);
+      _bossGoShown = false;
+      final b = config.boss;
+      _hold(
+        _bossIntro +
+            spec.ballColors.length * (b.previewPerColor + b.previewGap) +
+            b.goDelay,
+        boss: true,
+      );
       effects.banner = Announcement(
         'BOSS ROUND',
-        subtitle: 'remember the colors',
-        life: _countdownTotal,
+        subtitle: firstBoss ? intros['boss']!.$2 : 'watch the colors',
+        life: _bossIntro + 0.2,
       );
       _emit(const BossEvent(cleared: false));
-      _setPhase(GamePhase.countdown);
+      return;
     }
+
+    // Everything this round brings, most important first.
+    final found = <String>[
+      if (isFirst && level == 0 && !seen.contains('intro')) 'intro',
+      if (spec.kind == RoundKind.inverted) 'not',
+      if (spec.kind == RoundKind.split) 'split',
+      if (spec.ghost) 'ghost',
+      if (spec.pulseAmplitude > 0) 'surge',
+      if (spec.ringSpeed != 0) 'spin',
+      if (!isFirst && level > 0 && spec.pointerDir != previousDir) 'reverse',
+      if (spec.zones.any((z) => z.isBonus)) 'greedy',
+      if (spec.zones.any((z) => z.powerUp != null)) 'powerup',
+    ];
+    var hold = 0.0;
+    String? banner;
+    var bannerIsNew = false;
+    for (final name in found) {
+      final isNew = !seen.contains(name);
+      if (isNew) {
+        _markSeen(name);
+        if (!_noPause.contains(name)) hold = math.max(hold, a.firstTime);
+      } else if (_alwaysPause.contains(name)) {
+        hold = math.max(hold, a.repeat);
+      } else {
+        continue;
+      }
+      if (banner == null) {
+        banner = name;
+        bannerIsNew = isNew;
+      }
+    }
+    if (banner == null) return;
+    final (title, subtitle) = intros[banner]!;
+    final color = banner == 'not' ? spec.ballColors.first : -1;
+    effects.banner = Announcement(
+      title,
+      subtitle: subtitle,
+      color: color,
+      life: math.max(hold, bannerIsNew ? 2.0 : 1.0) + 0.4,
+    );
+    if (hold > 0) _hold(hold);
+  }
+
+  void _markSeen(String name) {
+    if (seen.add(name)) _emit(IntroSeenEvent(name));
   }
 
   /// Arms the one-lap fuse for the round's current step: it runs out when
@@ -600,7 +723,12 @@ class GameEngine extends ChangeNotifier {
     final dir = spec.pointerDir;
     final nearEdge = wrapAngle(z.center - dir * z.halfWidth);
     var d = travelDistance(r.localPointerAt(t), nearEdge, dir);
-    final reach = config.timing.minReaction * spec.maxRelativeSpeed;
+    // Later steps of a split / boss round need a moment to switch colors:
+    // if the next zone is closer than that, it is due on the next pass.
+    final reaction = r.step > 0
+        ? config.timing.splitSecondLead
+        : config.timing.minReaction;
+    final reach = reaction * spec.maxRelativeSpeed;
     if (d < reach && !z.contains(r.localPointerAt(t))) d += tau;
     r.stepDeadline =
         travel + d + z.width + config.timing.grace * spec.maxRelativeSpeed;
@@ -615,7 +743,6 @@ class GameEngine extends ChangeNotifier {
       _endFever();
       effects.shieldFlash = 1;
       effects.shake = 0.5;
-      effects.texts.add(FloatingText('SHIELD SAVED YOU', -1, big: true));
       _emit(const ShieldSavedEvent());
       _startRound(
         pointer: r.pointerAngleAt(t),
@@ -624,6 +751,14 @@ class GameEngine extends ChangeNotifier {
         t: t,
         previousColor: r.spec.targetColor,
         isFirst: true,
+      );
+      // A moment to recover before the pointer moves again.
+      if (phase != GamePhase.countdown) _hold(config.announce.shield);
+      effects.banner = Announcement(
+        'SHIELD SAVED YOU',
+        subtitle: 'get ready',
+        color: 1,
+        life: config.announce.shield + 0.3,
       );
       notifyListeners();
       return;
@@ -682,9 +817,15 @@ class GameEngine extends ChangeNotifier {
   }
 
   void _startCountdown() {
-    _bossPreview = false;
-    _countdownLeft = config.timing.continueCountdown;
-    _countdownTotal = _countdownLeft;
+    _hold(config.timing.continueCountdown, number: true);
+  }
+
+  /// Freezes the round for [seconds] (the pointer and ring stand still).
+  void _hold(double seconds, {bool number = false, bool boss = false}) {
+    _bossPreview = boss;
+    _countdownNumber = number;
+    _countdownLeft = seconds;
+    _countdownTotal = seconds;
     _setPhase(GamePhase.countdown);
   }
 }

@@ -152,6 +152,9 @@ class _GameScreenState extends State<GameScreen>
   }
 
   void _startRun() {
+    engine.seen
+      ..clear()
+      ..addAll(s.profile.profile.seenIntros);
     engine.startRun(best: s.profile.profile.bestScore);
   }
 
@@ -219,6 +222,8 @@ class _GameScreenState extends State<GameScreen>
           'stage_reached': summary.world + 1,
           'continues': summary.continuesUsed,
         });
+      case IntroSeenEvent(:final name):
+        s.profile.update((p) => p.seenIntros.add(name));
       case GameOverShown():
         break;
       case ContinuedEvent():
@@ -343,8 +348,9 @@ class _GameScreenState extends State<GameScreen>
             Positioned.fill(
               child: _Hud(engine: engine, theme: theme),
             ),
-            // A boss preview shows its colors in the ball instead.
-            if (!engine.bossPreview)
+            // Holds behind a banner (boss preview, new mechanic) show no
+            // number; only continue / resume count down.
+            if (engine.showCountdownNumber)
               IgnorePointer(
                 child: Center(
                   child: ListenableBuilder(

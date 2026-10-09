@@ -120,7 +120,7 @@ class RoundGenerator {
     final minLead = reaction * maxRel;
     var maxLead = math.max(minLead, config.zone.maxLeadFraction * tau - width);
     if (kind == RoundKind.split) {
-      maxLead = math.max(minLead, math.min(maxLead, minLead + deg(80)));
+      maxLead = math.max(minLead, math.min(maxLead, minLead + deg(60)));
     }
     final lead = _rng.range(minLead, maxLead);
     final primaryCenter = wrapAngle(pointerLocal + dir * (lead + width / 2));
@@ -186,18 +186,23 @@ class RoundGenerator {
             isTarget: true,
           ),
         ];
-        // The second color sits after the first, far enough to react.
+        // The second color sits after the first, ideally far enough to
+        // react. If that does not fit in the lap it moves closer; the fuse
+        // then grants an extra lap for it (see GameEngine._armStep).
         final far = primaryCenter + dir * width / 2;
-        final gap = _rng.range(
-          timing.minReaction * maxRel,
-          timing.minReaction * maxRel + deg(50),
+        final room = tau - clearance - lead - 2 * width - config.zone.minGap;
+        final ideal = _rng.range(
+          timing.splitSecondLead * maxRel,
+          timing.splitSecondLead * maxRel + deg(40),
         );
+        final gap = math.min(ideal, room);
         final second = Zone(
           center: wrapAngle(far + dir * (gap + width / 2)),
           width: width,
           color: others[0],
         );
-        if (_fits(second, zones, config.zone.minGap, pointerLocal, clearance)) {
+        if (gap >= config.zone.minGap &&
+            _fits(second, zones, config.zone.minGap, pointerLocal, clearance)) {
           zones.add(second);
           if (_rng.chance(0.5)) {
             _placeRandom(zones, others[1], otherWidth, pointerLocal, clearance);
@@ -558,9 +563,11 @@ class RoundGenerator {
         if (spec.steps.length != 2) problems.add('split needs two steps');
         final a = zones[spec.steps[0].primary];
         final b = zones[spec.steps[1].primary];
+        // Both halves ahead of the pointer within one lap, in order.
+        final lead = travelDistance(pointerLocal, nearEdge(a), dir);
         final gap = travelDistance(farEdge(a), nearEdge(b), dir);
-        if (gap / maxRel < timing.minReaction - eps) {
-          problems.add('second split color too close');
+        if (lead + a.width + gap + b.width > tau + eps) {
+          problems.add('split halves do not fit in one lap');
         }
         if (spec.ballColors.length != 2 ||
             spec.ballColors[0] != a.color ||

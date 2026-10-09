@@ -11,8 +11,12 @@ import 'test_helpers.dart';
 void main() {
   final config = loadTestConfig();
 
-  GameEngine newEngine(List<GameEvent> events) =>
-      GameEngine(config)..onEvent = events.add;
+  /// A returning player (every mechanic already explained) unless [fresh].
+  GameEngine newEngine(List<GameEvent> events, {bool fresh = false}) {
+    final e = GameEngine(config)..onEvent = events.add;
+    if (!fresh) e.seen.addAll(intros.keys);
+    return e;
+  }
 
   /// Taps opposite the current target: a guaranteed miss.
   void missNow(GameEngine e) {
@@ -155,6 +159,13 @@ void main() {
     tapTargetCenter(e);
     e.shield = true;
     missNow(e);
+    // Not dead: a short frozen pause, then play goes on.
+    expect(e.phase, GamePhase.countdown);
+    expect(e.showCountdownNumber, isFalse);
+    final pointer = e.pointerAngle();
+    advance(e, config.announce.shield * 0.8);
+    expect(e.pointerAngle(), closeTo(pointer, 1e-9));
+    waitUntilPlaying(e);
     expect(e.phase, GamePhase.playing);
     expect(e.shield, isFalse);
     expect(events.whereType<ShieldSavedEvent>(), hasLength(1));
@@ -175,24 +186,107 @@ void main() {
     expect(e.slowRounds, 2);
   });
 
-  test('boss rounds preview the sequence with the round frozen', () {
+  test('boss rounds: intro, then one color at a time, then GO', () {
     final events = <GameEvent>[];
     final e = newEngine(events)..startRun(best: 0, seed: 7);
     clearRounds(e, config.boss.every);
+    final b = config.boss;
     expect(e.round!.spec.kind, RoundKind.boss);
     expect(e.bossPreview, isTrue);
-    expect(e.bossPreviewIndex, 0);
+    expect(e.showCountdownNumber, isFalse);
+    // Intro: banner only, no color yet.
+    expect(e.bossPreviewIndex, -1);
     final pointer = e.pointerAngle();
-    advance(e, config.boss.previewPerColor * 1.5);
+    advance(e, b.intro + 0.1);
+    expect(e.bossPreviewIndex, 0);
+    // Gap between colors.
+    advance(e, b.previewPerColor);
+    expect(e.bossPreviewIndex, -1);
+    advance(e, b.previewGap);
     expect(e.bossPreviewIndex, 1);
+    expect(e.pointerAngle(), closeTo(pointer, 1e-9), reason: 'frozen');
+    // After the last color: a "GO" pause before the pointer moves.
+    final n = e.round!.spec.ballColors.length;
+    advance(e, (n - 1) * (b.previewPerColor + b.previewGap));
+    expect(e.bossPreview, isTrue);
+    expect(e.bossPreviewIndex, -1);
+    expect(e.effects.banner?.title, 'GO!');
     expect(e.pointerAngle(), closeTo(pointer, 1e-9));
     // Hitting the right colors in order clears it.
-    final steps = e.round!.spec.steps.length;
-    for (var i = 0; i < steps; i++) {
+    for (var i = 0; i < n; i++) {
       tapTargetCenter(e);
     }
     expect(events.whereType<BossEvent>().where((b) => b.cleared), hasLength(1));
     expect(e.level, config.boss.every + 1);
+  });
+
+  test('the very first boss gets a longer intro', () {
+    final e = newEngine([])..seen.remove('boss');
+    e.startRun(best: 0, seed: 7);
+    clearRounds(e, config.boss.every);
+    advance(e, config.boss.intro + 0.1);
+    expect(e.bossPreviewIndex, -1, reason: 'still reading the explanation');
+    advance(e, 1.0);
+    expect(e.bossPreviewIndex, 0);
+    expect(e.seen, contains('boss'));
+  });
+
+  group('announcements', () {
+    test('a first-ever run starts frozen behind an explanation', () {
+      final events = <GameEvent>[];
+      final e = newEngine(events, fresh: true)..startRun(best: 0, seed: 9);
+      expect(e.phase, GamePhase.countdown);
+      expect(e.showCountdownNumber, isFalse);
+      expect(e.effects.banner?.title, intros['intro']!.$1);
+      expect(events.whereType<IntroSeenEvent>().map((x) => x.name), ['intro']);
+      final pointer = e.pointerAngle();
+      advance(e, config.announce.firstTime - 0.1);
+      expect(e.pointerAngle(), closeTo(pointer, 1e-9));
+      advance(e, 0.2);
+      expect(e.phase, GamePhase.playing);
+    });
+
+    test('a returning player starts right away', () {
+      final e = newEngine([])..startRun(best: 0, seed: 9);
+      expect(e.phase, GamePhase.playing);
+    });
+
+    test('NOT and split rounds always pause; new mechanics pause once', () {
+      final events = <GameEvent>[];
+      final e = newEngine(events, fresh: true)..startRun(best: 0, seed: 11);
+      final paused = <String, int>{};
+      final rounds = <String, int>{};
+      var guard = 0;
+      while (e.level < 80 && guard++ < 400) {
+        waitUntilPlaying(e);
+        tapTargetCenter(e);
+        final r = e.round;
+        if (r == null || e.phase == GamePhase.dying) break;
+        final kind = r.spec.kind;
+        if (r.step != 0 || kind == RoundKind.boss) continue;
+        final key = kind == RoundKind.inverted
+            ? 'not'
+            : kind == RoundKind.split
+            ? 'split'
+            : null;
+        if (key == null) continue;
+        rounds[key] = (rounds[key] ?? 0) + 1;
+        if (e.phase == GamePhase.countdown) {
+          paused[key] = (paused[key] ?? 0) + 1;
+        }
+      }
+      expect(events.whereType<MissEvent>(), isEmpty);
+      expect(rounds['not'], greaterThan(1));
+      expect(paused['not'], rounds['not']);
+      expect(rounds['split'], greaterThan(1));
+      expect(paused['split'], rounds['split']);
+      final introduced = events.whereType<IntroSeenEvent>().map((x) => x.name);
+      expect(
+        introduced.toSet(),
+        containsAll(['intro', 'not', 'reverse', 'boss', 'split']),
+      );
+      expect(introduced.length, introduced.toSet().length, reason: 'once');
+    });
   });
 
   test('a boss round punishes the wrong order', () {

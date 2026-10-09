@@ -108,7 +108,9 @@ class GamePainter extends CustomPainter {
     // Zones.
     if (round != null) {
       final spec = round.spec;
-      final ghostAlpha = spec.ghost && !dead ? _ghostAlpha(t) : 1.0;
+      final ghostAlpha = spec.ghost && !dead
+          ? _ghostAlpha(math.max(0, t - round.startTime))
+          : 1.0;
       for (var i = 0; i < spec.zones.length; i++) {
         if (round.consumed.contains(i)) continue;
         _paintZone(
@@ -192,9 +194,10 @@ class GamePainter extends CustomPainter {
 
   double _ghostAlpha(double t) {
     final g = engine.config.ghost;
-    final phase = (t % g.period) / g.period;
-    // Smooth on/off: visible for visibleFraction of the period.
+    // Smooth on/off: visible for visibleFraction of the period, starting
+    // fully visible when the round starts.
     const edge = 0.08;
+    final phase = ((t % g.period) / g.period + edge) % 1.0;
     final v = g.visibleFraction;
     double a;
     if (phase < edge) {
@@ -594,9 +597,11 @@ class GamePainter extends CustomPainter {
       _label(canvas, '1', c + Offset(-br * 0.45, br * 1.35), br * 0.32);
       _label(canvas, '2', c + Offset(br * 0.45, br * 1.35), br * 0.32);
     } else if (colors.isEmpty) {
-      // Boss round in play: a blank ball with "?" and the progress.
+      // Boss round: blank between colors; "?" once it is your turn.
       _BallBlank.paint(canvas, c, br, theme.ringNeutral);
-      _label(canvas, '?', c, br * 0.9, color: theme.text);
+      if (!engine.bossPreview) {
+        _label(canvas, '?', c, br * 0.9, color: theme.text);
+      }
     } else {
       skin.paint(canvas, c, br, palette[colors.first], t);
     }

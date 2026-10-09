@@ -38,7 +38,8 @@ class GameConfig {
       fever = FeverConfig._(raw['fever'] as Map<String, dynamic>),
       powerUps = PowerUpConfig._(raw['powerUps'] as Map<String, dynamic>),
       boss = BossConfig._(raw['boss'] as Map<String, dynamic>),
-      worlds = WorldsConfig._(raw['worlds'] as Map<String, dynamic>);
+      worlds = WorldsConfig._(raw['worlds'] as Map<String, dynamic>),
+      announce = AnnounceConfig._(raw['announce'] as Map<String, dynamic>);
 
   factory GameConfig.fromJson(Map<String, dynamic> json) => GameConfig._(json);
 
@@ -80,6 +81,7 @@ class GameConfig {
   final PowerUpConfig powerUps;
   final BossConfig boss;
   final WorldsConfig worlds;
+  final AnnounceConfig announce;
 
   StageConfig stageFor(int level) {
     var stage = stages.first;
@@ -117,6 +119,7 @@ class TimingConfig {
       perfectMinWindow = _ms(m, 'perfectMinWindowMs'),
       nearMiss = _ms(m, 'nearMissMs'),
       minReaction = _ms(m, 'minReactionMs'),
+      splitSecondLead = _ms(m, 'splitSecondLeadMs'),
       firstRoundLead = _ms(m, 'firstRoundLeadMs'),
       minZoneWindow = _ms(m, 'minZoneWindowMs'),
       maxTapLookback = _ms(m, 'maxTapLookbackMs'),
@@ -138,6 +141,9 @@ class TimingConfig {
 
   /// The target always starts at least this far ahead of the pointer.
   final double minReaction;
+
+  /// The second color of a split ball is at least this far behind the first.
+  final double splitSecondLead;
   final double firstRoundLead;
 
   /// A target is never shorter than this to sweep through.
@@ -307,7 +313,10 @@ class BossConfig {
     : every = _i(m, 'every'),
       minLength = ((m['sequenceLength'] as List)[0] as num).toInt(),
       maxLength = ((m['sequenceLength'] as List)[1] as num).toInt(),
+      intro = _ms(m, 'introMs'),
       previewPerColor = _ms(m, 'previewPerColorMs'),
+      previewGap = _ms(m, 'previewGapMs'),
+      goDelay = _ms(m, 'goDelayMs'),
       zoneSize = _d(m, 'zoneSizeDeg') * _deg,
       speedFactor = _d(m, 'speedFactor'),
       stepPoints = _i(m, 'stepPoints'),
@@ -317,7 +326,20 @@ class BossConfig {
   final int every;
   final int minLength;
   final int maxLength;
+
+  /// Banner only, before the first color shows.
+  final double intro;
   final double previewPerColor;
+
+  /// Blank ball between two colors, so each one reads as separate.
+  final double previewGap;
+
+  /// "GO" pause after the last color, before the pointer moves.
+  final double goDelay;
+
+  /// Total frozen time before a boss round with [length] colors starts.
+  double previewTotal(int length) =>
+      intro + length * (previewPerColor + previewGap) + goDelay;
   final double zoneSize;
   final double speedFactor;
   final int stepPoints;
@@ -392,4 +414,20 @@ class AdsConfig {
 
   final int interstitialEveryRuns;
   final int noAdsFirstRuns;
+}
+
+class AnnounceConfig {
+  AnnounceConfig._(Map<String, dynamic> m)
+    : firstTime = _ms(m, 'firstTimeMs'),
+      repeat = _ms(m, 'repeatMs'),
+      shield = _ms(m, 'shieldMs');
+
+  /// Pause the first time a player ever meets a mechanic.
+  final double firstTime;
+
+  /// Pause before every later NOT / split round.
+  final double repeat;
+
+  /// Pause after a shield absorbs a miss.
+  final double shield;
 }

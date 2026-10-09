@@ -7,6 +7,7 @@
     "perfectMinWindowMs": 34,
     "nearMissMs": 90,
     "minReactionMs": 380,
+    "splitSecondLeadMs": 650,
     "firstRoundLeadMs": 650,
     "minZoneWindowMs": 75,
     "maxTapLookbackMs": 120,
@@ -64,8 +65,16 @@
   },
 
   "ghost": {
-    "periodMs": 1000,
-    "visibleFraction": 0.55
+    "_comment": "Blinking starts visible at the start of the round, so the target is always seen first.",
+    "periodMs": 1200,
+    "visibleFraction": 0.62
+  },
+
+  "announce": {
+    "_comment": "Pauses (round frozen, banner shown) so new situations are readable before the pointer moves. firstTime = the first time a player ever meets a mechanic; repeat = every later NOT / split round.",
+    "firstTimeMs": 2400,
+    "repeatMs": 1000,
+    "shieldMs": 1000
   },
 
   "bonusZone": {
@@ -99,7 +108,10 @@
     "_comment": "Memory round every N levels: watch the color sequence, then hit it in order.",
     "every": 25,
     "sequenceLength": [3, 4],
-    "previewPerColorMs": 650,
+    "introMs": 1600,
+    "previewPerColorMs": 1000,
+    "previewGapMs": 250,
+    "goDelayMs": 900,
     "zoneSizeDeg": 34,
     "speedFactor": 0.85,
     "stepPoints": 3,
