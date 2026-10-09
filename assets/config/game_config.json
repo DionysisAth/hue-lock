@@ -1,5 +1,5 @@
 {
-  "_comment": "All gameplay tuning lives here (design doc 7 and 14.3). Angles are in degrees, times in milliseconds. 'level' = rounds cleared in the current run; with only Good hits it equals the score.",
+  "_comment": "All gameplay tuning lives here (design doc 7 and 14.3). Angles are in degrees, times in milliseconds. 'level' = rounds cleared in the current run.",
 
   "timing": {
     "graceMs": 22,
@@ -15,15 +15,20 @@
     "continueCountdownMs": 1200
   },
 
+  "oneLap": {
+    "_comment": "The target must be hit on the pointer's first fair pass; a fuse around the ball shows the time left.",
+    "enabled": true
+  },
+
   "pointer": {
-    "baseSpeedDegPerSec": 115,
-    "speedPerLevel": 2.1,
+    "baseSpeedDegPerSec": 125,
+    "speedPerLevel": 3.0,
     "maxSpeedDegPerSec": 330
   },
 
   "zone": {
-    "startSizeDeg": 64,
-    "sizePerLevel": -0.46,
+    "startSizeDeg": 58,
+    "sizePerLevel": -0.6,
     "minSizeDeg": 17,
     "otherZoneSizeFactor": 1.0,
     "minGapDeg": 9,
@@ -37,17 +42,75 @@
   },
 
   "stages": [
-    { "fromLevel": 0,   "name": "warmup",    "colors": [1, 1], "reverse": 0.0, "decoys": 0, "rotate": 0.0 },
-    { "fromLevel": 25,  "name": "two-color", "colors": [2, 2], "reverse": 0.0, "decoys": 0, "rotate": 0.0 },
-    { "fromLevel": 40,  "name": "reverse",   "colors": [2, 2], "reverse": 1.0, "decoys": 0, "rotate": 0.0 },
-    { "fromLevel": 60,  "name": "decoys",    "colors": [3, 4], "reverse": 1.0, "decoys": 1, "rotate": 0.0 },
-    { "fromLevel": 80,  "name": "rotate",    "colors": [3, 4], "reverse": 1.0, "decoys": 1, "rotate": 1.0 },
-    { "fromLevel": 100, "name": "mixed",     "colors": [2, 4], "reverse": 0.5, "decoys": 1, "rotate": 0.6 }
+    { "fromLevel": 0,  "name": "warmup",    "colors": [1, 1], "locks": [1, 1], "reverse": 0.0, "decoys": 0, "rotate": 0.0, "bonus": 0.0,  "inverted": 0.0,  "split": 0.0,  "ghost": 0.0,  "pulse": 0.0 },
+    { "fromLevel": 6,  "name": "two-color", "colors": [2, 2], "locks": [1, 2], "reverse": 0.0, "decoys": 0, "rotate": 0.0, "bonus": 0.2,  "inverted": 0.0,  "split": 0.0,  "ghost": 0.0,  "pulse": 0.0 },
+    { "fromLevel": 12, "name": "reverse",   "colors": [2, 3], "locks": [2, 3], "reverse": 1.0, "decoys": 0, "rotate": 0.0, "bonus": 0.2,  "inverted": 0.0,  "split": 0.0,  "ghost": 0.0,  "pulse": 0.0 },
+    { "fromLevel": 18, "name": "not",       "colors": [3, 4], "locks": [2, 3], "reverse": 0.7, "decoys": 1, "rotate": 0.0, "bonus": 0.2,  "inverted": 0.25, "split": 0.0,  "ghost": 0.0,  "pulse": 0.0 },
+    { "fromLevel": 26, "name": "spin",      "colors": [3, 4], "locks": [2, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.8, "bonus": 0.2,  "inverted": 0.15, "split": 0.0,  "ghost": 0.3,  "pulse": 0.0 },
+    { "fromLevel": 34, "name": "split",     "colors": [2, 4], "locks": [2, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.5, "bonus": 0.2,  "inverted": 0.15, "split": 0.3,  "ghost": 0.2,  "pulse": 0.0 },
+    { "fromLevel": 42, "name": "surge",     "colors": [2, 4], "locks": [2, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.4, "bonus": 0.2,  "inverted": 0.15, "split": 0.2,  "ghost": 0.2,  "pulse": 0.4 },
+    { "fromLevel": 55, "name": "chaos",     "colors": [2, 4], "locks": [3, 5], "reverse": 0.5, "decoys": 1, "rotate": 0.5, "bonus": 0.25, "inverted": 0.2,  "split": 0.2,  "ghost": 0.25, "pulse": 0.3 }
   ],
 
   "ringRotation": {
     "minFractionOfPointer": 0.12,
     "maxFractionOfPointer": 0.32
+  },
+
+  "pulse": {
+    "_comment": "Surge rounds: pointer speed swings by +/- amplitude around its base speed.",
+    "amplitude": 0.45,
+    "periodMs": 900
+  },
+
+  "ghost": {
+    "periodMs": 1000,
+    "visibleFraction": 0.55
+  },
+
+  "bonusZone": {
+    "_comment": "Greedy zone: a thin extra zone of the ball's color, worth more.",
+    "sizeDeg": 8,
+    "minWindowMs": 45,
+    "points": 5
+  },
+
+  "locks": {
+    "_comment": "A set of N locks in a row; clearing the set pays this much per lock.",
+    "setBonusPerLock": 1
+  },
+
+  "fever": {
+    "perfectStreak": 5,
+    "pointsMultiplier": 2,
+    "speedFactor": 1.12
+  },
+
+  "powerUps": {
+    "chance": 0.08,
+    "minLevel": 8,
+    "slowRounds": 4,
+    "slowFactor": 0.75,
+    "wideRounds": 5,
+    "wideFactor": 1.5
+  },
+
+  "boss": {
+    "_comment": "Memory round every N levels: watch the color sequence, then hit it in order.",
+    "every": 25,
+    "sequenceLength": [3, 4],
+    "previewPerColorMs": 650,
+    "zoneSizeDeg": 34,
+    "speedFactor": 0.85,
+    "stepPoints": 3,
+    "clearBonus": 10
+  },
+
+  "worlds": {
+    "_comment": "Every N levels the stage changes: background tint, banner, faster music.",
+    "every": 20,
+    "tempoStep": 0.04,
+    "maxTempo": 1.2
   },
 
   "scoring": {
@@ -58,7 +121,7 @@
   },
 
   "coins": {
-    "scorePerCoin": 4,
+    "scorePerCoin": 12,
     "coinZoneChance": 0.08,
     "coinZoneMinLevel": 5,
     "coinZoneBonus": 5

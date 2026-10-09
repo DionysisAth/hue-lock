@@ -12,6 +12,7 @@ AppServices fakeServices({PlayerProfile? profile}) => AppServices(
   config: loadTestConfig(),
   profile: ProfileStore.memory(profile),
   audio: AudioService(enabled: false),
+  music: MusicService(enabled: false),
   haptics: HapticsService()..enabled = false,
   ads: NoAdsService(),
   purchases: NoPurchaseService(),

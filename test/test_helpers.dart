@@ -1,8 +1,6 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:hue_lock/config/game_config.dart';
-import 'package:hue_lock/core/angles.dart';
 import 'package:hue_lock/game/game_engine.dart';
 
 GameConfig loadTestConfig([Map<String, dynamic>? overrides]) {
@@ -14,17 +12,10 @@ GameConfig loadTestConfig([Map<String, dynamic>? overrides]) {
       : GameConfig.fromJson(deepMerge(base.raw, overrides));
 }
 
-/// Seconds until the pointer is over [localTarget] in the current round.
-double timeUntil(GameEngine engine, double localTarget) {
-  final r = engine.round!;
-  // A round may start slightly after the last frame (tap timestamps can be
-  // newer than the frame clock); the pointer waits at its start until then.
-  final now = math.max(engine.time, r.startTime);
-  final local = r.localPointerAt(now);
-  final rel = r.spec.relativeSpeed;
-  return (now - engine.time) +
-      travelDistance(local, localTarget, rel.sign.toInt()) / rel.abs();
-}
+/// Seconds until the pointer is over [localTarget] in the current round
+/// (exact even for surge rounds, where the pointer speed varies).
+double timeUntil(GameEngine engine, double localTarget) =>
+    engine.round!.timeWhenAt(engine.time, localTarget) - engine.time;
 
 /// Advances the engine in ~60 FPS steps.
 void advance(GameEngine engine, double seconds) {
@@ -36,11 +27,30 @@ void advance(GameEngine engine, double seconds) {
   }
 }
 
-/// Plays one round like a perfect player: taps at the target center.
+/// Lets any countdown / boss preview run out.
+void waitUntilPlaying(GameEngine engine) {
+  var guard = 0;
+  while (engine.phase == GamePhase.countdown && guard++ < 1000) {
+    engine.tick(1 / 60);
+  }
+}
+
+/// Plays one step like a perfect player: taps at the center of the current
+/// step's target.
 void tapTargetCenter(GameEngine engine) {
-  final target = engine.round!.spec.target;
+  waitUntilPlaying(engine);
+  final target = engine.round!.currentPrimary;
   final wait = timeUntil(engine, target.center);
   advance(engine, wait * 0.5);
   // Tap timestamped exactly at the center crossing, between frames.
   engine.tap(engine.time + wait * 0.5);
+}
+
+/// Plays perfect taps until [rounds] more rounds are cleared.
+void clearRounds(GameEngine engine, int rounds) {
+  final goal = engine.level + rounds;
+  var guard = 0;
+  while (engine.level < goal && guard++ < rounds * 6) {
+    tapTargetCenter(engine);
+  }
 }

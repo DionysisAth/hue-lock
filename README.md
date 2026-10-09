@@ -11,6 +11,39 @@ This repository implements its **MVP milestone** (design doc section 15).
 |---|---|---|
 | ![](docs/screenshots/classic.png) | ![](docs/screenshots/game_over_themes.png) | ![](docs/screenshots/menus.png) |
 
+## What makes a run
+
+- **One-lap fuse.** Hit the target on the pointer's first pass. A ring
+  around the ball burns down, and waiting a lap is a miss ("TOO SLOW").
+- **Fast ramp.** Something new every 6–8 rounds:
+  - 0: one color.
+  - 6: two colors.
+  - 12: the pointer reverses.
+  - 18: decoys and **NOT** rounds (hit any color *except* the ball's).
+  - 26: the ring spins and **ghost** zones blink in and out.
+  - 34: **split** balls (hit both colors in order in one lap).
+  - 42: **surge** pointer (its speed swings).
+  - 55: everything mixed.
+- **Lock sets.** Clear 2–5 rounds in a row (pips above the ball) for a set
+  bonus.
+- **Fever.** 5 Perfects in a row means double points, a faster pointer and
+  full music. One Good ends it.
+- **Greedy zones.** A thin gold-rimmed zone of the ball's color, worth +5.
+  It sits before the safe zone, so you choose between safe and greedy.
+- **Power-ups.** These ride on targets:
+  - **Shield:** absorbs one miss.
+  - **Slow-mo:** the next 4 rounds are slower.
+  - **Wide:** zones are bigger for 5 rounds.
+- **Boss rounds** every 25 levels. A color sequence flashes in the ball,
+  then you hit it in order on four zones.
+- **Stages.** Every 20 levels the run enters a new stage (Dawn, Neon Reef,
+  Ember, Aurora, Nebula, Void, …). Each has its own background tint and a
+  banner, and the music gets faster.
+- **Adaptive music.** Four stacked layers build with the run, Fever plays
+  the full mix, and a miss cuts it to silence.
+
+Everything above is tunable in `assets/config/game_config.json`.
+
 ## Engine
 
 **Flutter** (Dart). It is one codebase for iOS and Android, it has a small
@@ -85,7 +118,7 @@ lib/
   services/   save, audio/haptics, ads, purchases, analytics
   ui/         game screen (+ overlays), shop, settings
 assets/       config + sound effects
-tool/         generate_sounds.py (synthesizes the placeholder SFX)
+tool/         generate_sounds.py / generate_music.py (synthesized audio), ci/ scripts
 test/         generator fairness, hit judging, engine, widget tests
 ```
 
@@ -101,8 +134,8 @@ test/         generator fairness, hit judging, engine, widget tests
   final application id / bundle id (`com.huelock.hue_lock`).
 - App icons, splash screen, store listing, privacy policy, age rating.
 - Plug a real analytics backend (Firebase / GameAnalytics) into `Analytics`.
-- Replace the synthesized placeholder sounds with designed ones. Add music
-  that intensifies with score.
+- Replace the synthesized placeholder sounds and music loops with designed
+  ones (keep the file names; music_1..4 must share length and tempo).
 - Test input latency and frame pacing on low-end Android devices. Some
   Android phones need `flutter_displaymode` to run at 90/120 Hz.
 - Settle the open decisions in design doc section 19: name, currencies,
@@ -112,4 +145,5 @@ test/         generator fairness, hit judging, engine, widget tests
 
 Daily Challenge and leaderboards (the seeded generator is ready for it),
 missions, XP, daily rewards, clip sharing and friend challenges, gems, season
-pass, Zen mode, shifting zones, and mid-round color changes.
+pass, Zen mode, shifting zones, mid-round color changes, and per-stage ring
+shapes.

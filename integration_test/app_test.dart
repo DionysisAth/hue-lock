@@ -4,7 +4,6 @@
 //   flutter test integration_test -d <device>
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hue_lock/core/angles.dart';
 import 'package:hue_lock/game/game_engine.dart';
 import 'package:hue_lock/main.dart' as app;
 import 'package:hue_lock/ui/game_screen.dart';
@@ -68,14 +67,7 @@ Future<void> waitPlaying(WidgetTester tester, GameEngine e) async {
 /// Seconds until the pointer crosses the center of the current target.
 double untilTargetCenter(GameEngine e) {
   final r = e.round!;
-  final now = e.time > r.startTime ? e.time : r.startTime;
-  final rel = r.spec.relativeSpeed;
-  final travel = travelDistance(
-    r.localPointerAt(now),
-    r.spec.target.center,
-    rel.sign.toInt(),
-  );
-  return (now - e.time) + travel / rel.abs();
+  return r.timeWhenAt(e.time, r.currentPrimary.center) - e.time;
 }
 
 void main() {

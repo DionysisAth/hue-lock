@@ -26,7 +26,19 @@ class GameConfig {
       scoring = ScoringConfig._(raw['scoring'] as Map<String, dynamic>),
       coins = CoinsConfig._(raw['coins'] as Map<String, dynamic>),
       continues = ContinueConfig._(raw['continue'] as Map<String, dynamic>),
-      ads = AdsConfig._(raw['ads'] as Map<String, dynamic>);
+      ads = AdsConfig._(raw['ads'] as Map<String, dynamic>),
+      oneLap = (raw['oneLap'] as Map<String, dynamic>)['enabled'] as bool,
+      pulse = PulseConfig._(raw['pulse'] as Map<String, dynamic>),
+      ghost = GhostConfig._(raw['ghost'] as Map<String, dynamic>),
+      bonusZone = BonusZoneConfig._(raw['bonusZone'] as Map<String, dynamic>),
+      setBonusPerLock = _i(
+        raw['locks'] as Map<String, dynamic>,
+        'setBonusPerLock',
+      ),
+      fever = FeverConfig._(raw['fever'] as Map<String, dynamic>),
+      powerUps = PowerUpConfig._(raw['powerUps'] as Map<String, dynamic>),
+      boss = BossConfig._(raw['boss'] as Map<String, dynamic>),
+      worlds = WorldsConfig._(raw['worlds'] as Map<String, dynamic>);
 
   factory GameConfig.fromJson(Map<String, dynamic> json) => GameConfig._(json);
 
@@ -57,6 +69,17 @@ class GameConfig {
   final CoinsConfig coins;
   final ContinueConfig continues;
   final AdsConfig ads;
+
+  /// The target must be hit on the pointer's first fair pass.
+  final bool oneLap;
+  final PulseConfig pulse;
+  final GhostConfig ghost;
+  final BonusZoneConfig bonusZone;
+  final int setBonusPerLock;
+  final FeverConfig fever;
+  final PowerUpConfig powerUps;
+  final BossConfig boss;
+  final WorldsConfig worlds;
 
   StageConfig stageFor(int level) {
     var stage = stages.first;
@@ -179,7 +202,14 @@ class StageConfig {
       maxColors = ((m['colors'] as List)[1] as num).toInt(),
       reverseChance = _d(m, 'reverse'),
       decoys = _i(m, 'decoys'),
-      rotateChance = _d(m, 'rotate');
+      rotateChance = _d(m, 'rotate'),
+      minLocks = ((m['locks'] as List)[0] as num).toInt(),
+      maxLocks = ((m['locks'] as List)[1] as num).toInt(),
+      bonusChance = _d(m, 'bonus'),
+      invertedChance = _d(m, 'inverted'),
+      splitChance = _d(m, 'split'),
+      ghostChance = _d(m, 'ghost'),
+      pulseChance = _d(m, 'pulse');
 
   final int fromLevel;
   final String name;
@@ -194,6 +224,119 @@ class StageConfig {
 
   /// Chance the ring itself spins during a round.
   final double rotateChance;
+
+  /// Locks per set (rounds cleared in a row for a set bonus).
+  final int minLocks;
+  final int maxLocks;
+
+  /// Chance of a thin, high-value extra zone of the ball's color.
+  final double bonusChance;
+
+  /// Chance of a "NOT" round: hit any color except the ball's.
+  final double invertedChance;
+
+  /// Chance of a split ball: hit two colors in order in one lap.
+  final double splitChance;
+
+  /// Chance the zones blink in and out.
+  final double ghostChance;
+
+  /// Chance the pointer surges (speed swings) during the round.
+  final double pulseChance;
+}
+
+class PulseConfig {
+  PulseConfig._(Map<String, dynamic> m)
+    : amplitude = _d(m, 'amplitude'),
+      period = _ms(m, 'periodMs');
+
+  final double amplitude;
+  final double period;
+}
+
+class GhostConfig {
+  GhostConfig._(Map<String, dynamic> m)
+    : period = _ms(m, 'periodMs'),
+      visibleFraction = _d(m, 'visibleFraction');
+
+  final double period;
+  final double visibleFraction;
+}
+
+class BonusZoneConfig {
+  BonusZoneConfig._(Map<String, dynamic> m)
+    : size = _d(m, 'sizeDeg') * _deg,
+      minWindow = _ms(m, 'minWindowMs'),
+      points = _i(m, 'points');
+
+  final double size;
+  final double minWindow;
+  final int points;
+}
+
+class FeverConfig {
+  FeverConfig._(Map<String, dynamic> m)
+    : perfectStreak = _i(m, 'perfectStreak'),
+      pointsMultiplier = _i(m, 'pointsMultiplier'),
+      speedFactor = _d(m, 'speedFactor');
+
+  final int perfectStreak;
+  final int pointsMultiplier;
+  final double speedFactor;
+}
+
+class PowerUpConfig {
+  PowerUpConfig._(Map<String, dynamic> m)
+    : chance = _d(m, 'chance'),
+      minLevel = _i(m, 'minLevel'),
+      slowRounds = _i(m, 'slowRounds'),
+      slowFactor = _d(m, 'slowFactor'),
+      wideRounds = _i(m, 'wideRounds'),
+      wideFactor = _d(m, 'wideFactor');
+
+  final double chance;
+  final int minLevel;
+  final int slowRounds;
+  final double slowFactor;
+  final int wideRounds;
+  final double wideFactor;
+}
+
+class BossConfig {
+  BossConfig._(Map<String, dynamic> m)
+    : every = _i(m, 'every'),
+      minLength = ((m['sequenceLength'] as List)[0] as num).toInt(),
+      maxLength = ((m['sequenceLength'] as List)[1] as num).toInt(),
+      previewPerColor = _ms(m, 'previewPerColorMs'),
+      zoneSize = _d(m, 'zoneSizeDeg') * _deg,
+      speedFactor = _d(m, 'speedFactor'),
+      stepPoints = _i(m, 'stepPoints'),
+      clearBonus = _i(m, 'clearBonus');
+
+  /// A boss round every [every] levels (0 disables them).
+  final int every;
+  final int minLength;
+  final int maxLength;
+  final double previewPerColor;
+  final double zoneSize;
+  final double speedFactor;
+  final int stepPoints;
+  final int clearBonus;
+
+  bool isBossLevel(int level) => every > 0 && level > 0 && level % every == 0;
+}
+
+class WorldsConfig {
+  WorldsConfig._(Map<String, dynamic> m)
+    : every = _i(m, 'every'),
+      tempoStep = _d(m, 'tempoStep'),
+      maxTempo = _d(m, 'maxTempo');
+
+  final int every;
+  final double tempoStep;
+  final double maxTempo;
+
+  int worldFor(int level) => every <= 0 ? 0 : level ~/ every;
 }
 
 class RingRotationConfig {

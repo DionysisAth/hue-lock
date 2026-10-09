@@ -46,6 +46,21 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               SwitchListTile(
+                title: Text('Music', style: text),
+                subtitle: Text('Builds up as your run heats up', style: sub),
+                value: p.music,
+                onChanged: (v) => s.profile.update((p) => p.music = v),
+              ),
+              ListTile(
+                title: Text('Music volume', style: text),
+                subtitle: Slider(
+                  value: p.musicVolume,
+                  onChanged: p.music
+                      ? (v) => s.profile.update((p) => p.musicVolume = v)
+                      : null,
+                ),
+              ),
+              SwitchListTile(
                 title: Text('Haptics', style: text),
                 subtitle: Text('Vibrate on hits', style: sub),
                 value: p.haptics,

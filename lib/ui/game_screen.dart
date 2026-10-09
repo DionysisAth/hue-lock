@@ -55,6 +55,7 @@ class _GameScreenState extends State<GameScreen>
       s = Services.of(context);
       _engine = GameEngine(s.config)..onEvent = _onEvent;
       _ticker.start();
+      _updateMusic();
     }
   }
 
@@ -73,7 +74,33 @@ class _GameScreenState extends State<GameScreen>
       // Never let a run continue while the player can't see it.
       engine.pause();
       _lastFrameStamp = null;
+      if (state != AppLifecycleState.inactive) s.music.suspend();
+    } else {
+      s.music.resume();
     }
+  }
+
+  /// Music builds with the run: pad at the start, full mix in Fever.
+  void _updateMusic() {
+    final e = engine;
+    final int intensity;
+    if (e.phase == GamePhase.home) {
+      intensity = 1;
+    } else if (e.fever) {
+      intensity = 4;
+    } else if (e.level >= 30) {
+      intensity = 3;
+    } else if (e.level >= 8) {
+      intensity = 2;
+    } else {
+      intensity = 1;
+    }
+    s.music.setIntensity(intensity);
+  }
+
+  void _updateTempo() {
+    final w = s.config.worlds;
+    s.music.setTempo(math.min(w.maxTempo, 1 + w.tempoStep * engine.world));
   }
 
   void _onTick(Duration _) {
@@ -137,7 +164,10 @@ class _GameScreenState extends State<GameScreen>
           p.runsSinceInterstitial++;
         });
         s.analytics.log('run_start', {'run': s.profile.profile.totalRuns});
+        _updateTempo();
+        _updateMusic();
       case HitEvent(:final judgement, :final perfectStreak, :final coinBonus):
+        _updateMusic();
         if (judgement.kind == HitKind.perfect) {
           s.audio.playPerfect(perfectStreak);
           s.haptics.perfect();
@@ -148,7 +178,29 @@ class _GameScreenState extends State<GameScreen>
         if (coinBonus > 0) s.audio.play(Sfx.coin);
       case NewBestEvent():
         s.audio.play(Sfx.newBest);
+      case FeverEvent(:final active):
+        if (active) {
+          s.audio.play(Sfx.fever);
+          s.haptics.perfect();
+        }
+        _updateMusic();
+      case PowerUpEvent(:final powerUp):
+        s.audio.play(Sfx.powerUp);
+        s.analytics.log('power_up', {'type': powerUp.name});
+      case ShieldSavedEvent():
+        s.audio.play(Sfx.shield);
+        s.haptics.fail();
+      case SetClearedEvent():
+        s.audio.play(Sfx.coin);
+      case BossEvent(:final cleared):
+        s.audio.play(cleared ? Sfx.stage : Sfx.boss);
+        if (!cleared) s.analytics.log('boss_start', {'level': engine.level});
+      case WorldEvent(:final world):
+        s.audio.play(Sfx.stage);
+        s.analytics.log('stage_reached', {'stage': world + 1});
+        _updateTempo();
       case MissEvent(:final judgement, :final summary):
+        s.music.cut();
         s.audio.play(Sfx.fail);
         s.haptics.fail();
         s.profile.update((p) {
@@ -163,11 +215,14 @@ class _GameScreenState extends State<GameScreen>
           'perfects': summary.perfects,
           'near_miss': judgement.nearMiss,
           'wrong_color': judgement.wrongZone != null,
+          'timeout': judgement.timeout,
+          'stage_reached': summary.world + 1,
           'continues': summary.continuesUsed,
         });
       case GameOverShown():
-      case ContinuedEvent():
         break;
+      case ContinuedEvent():
+        _updateMusic();
     }
   }
 
@@ -224,6 +279,7 @@ class _GameScreenState extends State<GameScreen>
       }
     }
     engine.goHome();
+    _updateMusic();
   }
 
   Future<void> _open(Widget screen) async {
@@ -284,22 +340,26 @@ class _GameScreenState extends State<GameScreen>
       case GamePhase.countdown:
         return Stack(
           children: [
-            _Hud(engine: engine, theme: theme),
-            IgnorePointer(
-              child: Center(
-                child: ListenableBuilder(
-                  listenable: _frame,
-                  builder: (_, _) => Text(
-                    '${math.max(1, engine.countdownLeft.ceil())}',
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 64,
-                      fontWeight: FontWeight.w900,
+            Positioned.fill(
+              child: _Hud(engine: engine, theme: theme),
+            ),
+            // A boss preview shows its colors in the ball instead.
+            if (!engine.bossPreview)
+              IgnorePointer(
+                child: Center(
+                  child: ListenableBuilder(
+                    listenable: _frame,
+                    builder: (_, _) => Text(
+                      '${math.max(1, engine.countdownLeft.ceil())}',
+                      style: TextStyle(
+                        color: theme.text,
+                        fontSize: 64,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
           ],
         );
       case GamePhase.gameOver:
@@ -336,16 +396,79 @@ class _Hud extends StatelessWidget {
   final GameEngine engine;
   final RingTheme theme;
 
+  Widget _chip(String label, {IconData? icon, Color? color}) {
+    final c = color ?? theme.text;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: c.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 15, color: c),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: c,
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final e = engine;
+    final chips = <Widget>[
+      if (e.fever)
+        _chip(
+          'FEVER x${e.config.fever.pointsMultiplier}',
+          icon: Icons.local_fire_department_rounded,
+          color: const Color(0xFFFF7A2F),
+        ),
+      if (e.multiplier > 1) _chip('COMBO x${e.multiplier}'),
+      if (e.shield)
+        _chip(
+          'SHIELD',
+          icon: Icons.shield_rounded,
+          color: HuePalette.standard[1],
+        ),
+      if (e.slowRounds > 0)
+        _chip(
+          'SLOW ${e.slowRounds}',
+          icon: Icons.hourglass_bottom_rounded,
+          color: HuePalette.standard[3],
+        ),
+      if (e.wideRounds > 0)
+        _chip(
+          'WIDE ${e.wideRounds}',
+          icon: Icons.open_in_full_rounded,
+          color: HuePalette.standard[2],
+        ),
+    ];
     return IgnorePointer(
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.only(top: 24),
+          padding: const EdgeInsets.only(top: 18),
           child: Column(
             children: [
               Text(
-                '${engine.score}',
+                'STAGE ${e.world + 1} · ${worldName(e.world)}',
+                style: _label(theme, size: 12),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${e.score}',
                 style: TextStyle(
                   color: theme.text,
                   fontSize: 64,
@@ -355,33 +478,17 @@ class _Hud extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                engine.newBestReached
+                e.newBestReached
                     ? 'NEW BEST'
-                    : 'BEST ${math.max(engine.bestAtRunStart, engine.score)}',
+                    : 'BEST ${math.max(e.bestAtRunStart, e.score)}',
                 style: _label(theme),
               ),
               const SizedBox(height: 10),
-              AnimatedOpacity(
-                opacity: engine.multiplier > 1 ? 1 : 0,
-                duration: const Duration(milliseconds: 150),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.text.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'COMBO x${engine.multiplier}',
-                    style: TextStyle(
-                      color: theme.text,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                alignment: WrapAlignment.center,
+                children: chips,
               ),
             ],
           ),
@@ -631,9 +738,31 @@ class _GameOverOverlay extends StatelessWidget {
                             '${miss.early ? 'early' : 'late'}',
                             style: _label(theme, size: 13),
                           ),
+                        ] else if (miss != null && miss.timeout) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'TOO SLOW',
+                            style: TextStyle(
+                              color: HuePalette.standard[2],
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          Text(
+                            'the fuse ran out',
+                            style: _label(theme, size: 13),
+                          ),
                         ] else if (miss?.wrongZone != null) ...[
                           const SizedBox(height: 8),
                           Text('WRONG COLOR', style: _label(theme, size: 15)),
+                        ],
+                        if (summary != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            'STAGE ${summary.world + 1} · ${worldName(summary.world)}',
+                            style: _label(theme, size: 12),
+                          ),
                         ],
                       ],
                     ),

@@ -19,8 +19,11 @@ void main() {
   final spec = RoundSpec(
     level: 0,
     stageName: 'test',
-    targetColor: 0,
     zones: [target, decoy],
+    steps: const [
+      RoundStep([0], 0),
+    ],
+    ballColors: const [0],
     pointerSpeed: speed,
     pointerDir: 1,
     ringSpeed: 0,
@@ -77,5 +80,85 @@ void main() {
     expect(r.pointerAngleAt(10.5), closeTo(deg(90), 1e-9));
     r.frozenAt = 10.25;
     expect(r.pointerAngleAt(11), closeTo(deg(45), 1e-9));
+  });
+
+  test('NOT round: any zone except the forbidden color counts', () {
+    final zones = [
+      Zone(center: deg(90), width: deg(40), color: 1, isTarget: true),
+      Zone(center: deg(140), width: deg(30), color: 0, isDecoy: true),
+      Zone(center: deg(220), width: deg(30), color: 2),
+    ];
+    final not = RoundSpec(
+      level: 20,
+      stageName: 'not',
+      kind: RoundKind.inverted,
+      zones: zones,
+      steps: const [
+        RoundStep([0, 2], 0),
+      ],
+      ballColors: const [0],
+      pointerSpeed: speed,
+      pointerDir: 1,
+      ringSpeed: 0,
+      isBreather: false,
+    );
+    expect(judgeTap(not, deg(90), timing).isHit, isTrue);
+    expect(judgeTap(not, deg(220), timing).isHit, isTrue);
+    final forbidden = judgeTap(not, deg(140), timing);
+    expect(forbidden.kind, HitKind.miss);
+    expect(forbidden.wrongZone, zones[1]);
+  });
+
+  test('greedy zone counts as a hit; consumed zones are gone', () {
+    final zones = [
+      Zone(center: deg(90), width: deg(40), color: 0, isTarget: true),
+      Zone(center: deg(40), width: deg(8), color: 0, isBonus: true),
+    ];
+    final greedy = RoundSpec(
+      level: 10,
+      stageName: 'test',
+      zones: zones,
+      steps: const [
+        RoundStep([0, 1], 0),
+      ],
+      ballColors: const [0],
+      pointerSpeed: speed,
+      pointerDir: 1,
+      ringSpeed: 0,
+      isBreather: false,
+    );
+    final j = judgeTap(greedy, deg(40), timing);
+    expect(j.isHit, isTrue);
+    expect(j.zone!.isBonus, isTrue);
+    expect(j.zoneIndex, 1);
+    // A used-up zone neither counts nor blocks.
+    expect(judgeTap(greedy, deg(40), timing, consumed: {1}).isHit, isFalse);
+  });
+
+  test('surge rounds: angles stay analytic and timeWhenAt is exact', () {
+    final surge = RoundSpec(
+      level: 50,
+      stageName: 'surge',
+      zones: [target],
+      steps: const [
+        RoundStep([0], 0),
+      ],
+      ballColors: const [0],
+      pointerSpeed: speed,
+      pointerDir: 1,
+      ringSpeed: 0,
+      isBreather: false,
+      pulseAmplitude: 0.45,
+      pulseOmega: 7,
+    );
+    final r = ActiveRound(
+      spec: surge,
+      startTime: 0,
+      pointerStart: 0,
+      ringStart: 0,
+    );
+    final t = r.timeWhenAt(0, deg(90));
+    expect(r.localPointerAt(t), closeTo(deg(90), 1e-6));
+    expect(r.relativeSpeedAt(0.2), isNot(closeTo(speed, 1e-3)));
   });
 }

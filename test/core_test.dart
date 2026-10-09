@@ -55,10 +55,12 @@ void main() {
       expect(c.ringRotation.maxFraction, lessThan(0.5));
       expect(c.stages.first.fromLevel, 0);
       expect(c.stageFor(0).name, 'warmup');
-      expect(c.stageFor(30).minColors, 2);
-      expect(c.stageFor(45).reverseChance, 1);
-      expect(c.stageFor(85).rotateChance, 1);
-      expect(c.stageFor(500).name, 'mixed');
+      expect(c.stageFor(8).minColors, 2);
+      expect(c.stageFor(14).reverseChance, 1);
+      expect(c.stageFor(30).rotateChance, greaterThan(0));
+      expect(c.stageFor(500).name, 'chaos');
+      expect(c.boss.isBossLevel(25), isTrue);
+      expect(c.boss.isBossLevel(0), isFalse);
     });
 
     test('overrides deep-merge (remote config)', () {

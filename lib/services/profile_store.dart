@@ -17,6 +17,8 @@ class PlayerProfile {
   String theme = 'classic';
   bool sound = true;
   double volume = 0.8;
+  bool music = true;
+  double musicVolume = 0.6;
   bool haptics = true;
   bool colorblind = false;
   bool adsRemoved = false;
@@ -32,6 +34,8 @@ class PlayerProfile {
     'theme': theme,
     'sound': sound,
     'volume': volume,
+    'music': music,
+    'musicVolume': musicVolume,
     'haptics': haptics,
     'colorblind': colorblind,
     'adsRemoved': adsRemoved,
@@ -54,6 +58,8 @@ class PlayerProfile {
       ..theme = get('theme', 'classic')
       ..sound = get('sound', true)
       ..volume = (j['volume'] as num?)?.toDouble() ?? 0.8
+      ..music = get('music', true)
+      ..musicVolume = (j['musicVolume'] as num?)?.toDouble() ?? 0.6
       ..haptics = get('haptics', true)
       ..colorblind = get('colorblind', false)
       ..adsRemoved = get('adsRemoved', false);

@@ -14,6 +14,7 @@ class AppServices {
     required this.config,
     required this.profile,
     required this.audio,
+    required this.music,
     required this.haptics,
     required this.ads,
     required this.purchases,
@@ -26,6 +27,7 @@ class AppServices {
   final GameConfig config;
   final ProfileStore profile;
   final AudioService audio;
+  final MusicService music;
   final HapticsService haptics;
   final AdsService ads;
   final PurchaseService purchases;
@@ -39,6 +41,9 @@ class AppServices {
       ..muted = !p.sound
       ..volume = p.volume;
     haptics.enabled = p.haptics;
+    music
+      ..muted = !p.music
+      ..volume = p.musicVolume;
   }
 
   /// Non-critical startup work, run after the first frame so the game is
@@ -46,6 +51,7 @@ class AppServices {
   Future<void> startBackground() async {
     await Future.wait([
       audio.init(),
+      music.init(),
       purchases.init(
         onEntitled: (id) {
           if (id == Products.removeAds && !profile.profile.adsRemoved) {

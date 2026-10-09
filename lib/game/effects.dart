@@ -45,11 +45,30 @@ class LockFlash {
   double get t => (age / life).clamp(0.0, 1.0);
 }
 
+/// Big centered announcement ("STAGE 2", "FEVER!", "BOSS ROUND").
+class Announcement {
+  Announcement(this.title, {this.subtitle, this.color = -1, this.life = 1.6});
+
+  final String title;
+  final String? subtitle;
+
+  /// Palette index, or -1 for the theme text color.
+  final int color;
+  final double life;
+  double age = 0;
+
+  double get t => (age / life).clamp(0.0, 1.0);
+}
+
 class Effects {
   final _rng = SeededRandom(0x5eed);
   final particles = <Particle>[];
   final texts = <FloatingText>[];
   final locks = <LockFlash>[];
+  Announcement? banner;
+
+  /// 1 right after a shield absorbs a miss, decays to 0.
+  double shieldFlash = 0;
 
   /// 1 right after a Perfect, decays to 0.
   double perfectFlash = 0;
@@ -68,6 +87,8 @@ class Effects {
     particles.clear();
     texts.clear();
     locks.clear();
+    banner = null;
+    shieldFlash = 0;
     perfectFlash = 0;
     hitPulse = 0;
     shake = 0;
@@ -109,6 +130,11 @@ class Effects {
       l.age += dt;
     }
     locks.removeWhere((l) => l.age >= LockFlash.life);
+    if (banner != null) {
+      banner!.age += dt;
+      if (banner!.age >= banner!.life) banner = null;
+    }
+    shieldFlash = math.max(0, shieldFlash - dt * 2.5);
     perfectFlash = math.max(0, perfectFlash - dt * 3.5);
     hitPulse = math.max(0, hitPulse - dt * 5);
     shake = math.max(0, shake - dt * 4);

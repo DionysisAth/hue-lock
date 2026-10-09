@@ -28,6 +28,7 @@ Future<void> main() async {
     config: config,
     profile: profile,
     audio: AudioService(),
+    music: MusicService(),
     haptics: HapticsService(),
     ads: mobile ? MobileAdsService() : NoAdsService(),
     purchases: mobile ? StorePurchaseService() : NoPurchaseService(),

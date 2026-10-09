@@ -54,139 +54,386 @@ class RoundGenerator {
 
   /// [pointerLocal] is the ring-local angle of the pointer when the round
   /// starts; [currentDir] is the pointer direction during the previous round.
+  /// [speedFactor] / [sizeFactor] apply Fever, Slow-mo and Wide.
   RoundSpec next({
     required int level,
     required double pointerLocal,
     required int currentDir,
     int? previousColor,
     bool isFirst = false,
+    double speedFactor = 1,
+    double sizeFactor = 1,
+    bool allowPowerUps = true,
   }) {
     final stage = config.stageFor(level);
     final diff = Difficulty.forLevel(config, level);
-    final speed = diff.pointerSpeed;
-
-    // Direction: the first round of a run always goes clockwise.
     var dir = currentDir == 0 ? 1 : currentDir;
+
+    if (!isFirst && config.boss.isBossLevel(level)) {
+      return _boss(level, stage, diff, pointerLocal, dir, speedFactor);
+    }
+
+    final speed = diff.pointerSpeed * speedFactor;
     if (level == 0) {
       dir = 1;
     } else if (!isFirst && _rng.chance(stage.reverseChance)) {
       dir = -dir;
     }
 
-    // Ring spin, capped well below pointer speed so relative motion never
-    // stalls or reverses.
+    var pulseA = 0.0, pulseW = 0.0;
+    if (!isFirst && stage.pulseChance > 0 && _rng.chance(stage.pulseChance)) {
+      pulseA = config.pulse.amplitude.clamp(0.0, 0.8);
+      pulseW = tau / config.pulse.period;
+    }
+
+    // Ring spin, capped well below the pointer's slowest speed so relative
+    // motion never stalls or reverses.
     var ringSpeed = 0.0;
     if (stage.rotateChance > 0 && _rng.chance(stage.rotateChance)) {
       final r = config.ringRotation;
-      final frac = math.min(0.45, _rng.range(r.minFraction, r.maxFraction));
+      final frac = math.min(
+        0.45 * (1 - pulseA),
+        _rng.range(r.minFraction, r.maxFraction),
+      );
       ringSpeed = (_rng.chance(0.5) ? 1 : -1) * frac * speed;
     }
-    final relSpeed = (dir * speed - ringSpeed).abs();
+    final maxRel = speed * (1 + pulseA) + ringSpeed.abs();
 
-    // Target zone: never shorter than the minimum sweep window.
+    var kind = RoundKind.normal;
+    final roll = _rng.nextDouble();
+    if (!isFirst && roll < stage.splitChance) {
+      kind = RoundKind.split;
+    } else if (!isFirst && roll < stage.splitChance + stage.invertedChance) {
+      kind = RoundKind.inverted;
+    }
+    final ghost =
+        !isFirst && stage.ghostChance > 0 && _rng.chance(stage.ghostChance);
+
+    // Primary zone: never shorter than the minimum sweep window, and always
+    // at least the reaction time ahead of the pointer.
     final timing = config.timing;
-    final targetWidth = math.min(
+    final width = math.min(
       deg(150),
-      math.max(diff.zoneSize, timing.minZoneWindow * relSpeed),
+      math.max(diff.zoneSize * sizeFactor, timing.minZoneWindow * maxRel),
     );
     final reaction = isFirst ? timing.firstRoundLead : timing.minReaction;
-    final minLead = reaction * relSpeed;
-    final maxLead = math.max(
-      minLead,
-      config.zone.maxLeadFraction * tau - targetWidth,
-    );
+    final minLead = reaction * maxRel;
+    var maxLead = math.max(minLead, config.zone.maxLeadFraction * tau - width);
+    if (kind == RoundKind.split) {
+      maxLead = math.max(minLead, math.min(maxLead, minLead + deg(80)));
+    }
     final lead = _rng.range(minLead, maxLead);
-    final targetCenter = wrapAngle(
-      pointerLocal + dir * (lead + targetWidth / 2),
-    );
+    final primaryCenter = wrapAngle(pointerLocal + dir * (lead + width / 2));
 
-    // Colors: target differs from the previous ball color when possible.
-    var targetColor = _rng.nextInt(paletteSize);
-    if (previousColor != null && targetColor == previousColor) {
-      targetColor =
-          (targetColor + 1 + _rng.nextInt(paletteSize - 1)) % paletteSize;
+    var color = _rng.nextInt(paletteSize);
+    if (previousColor != null && color == previousColor) {
+      color = (color + 1 + _rng.nextInt(paletteSize - 1)) % paletteSize;
     }
     final others = [
       for (var c = 0; c < paletteSize; c++)
-        if (c != targetColor) c,
+        if (c != color) c,
     ];
     _shuffle(others);
 
-    final hasCoin =
-        level >= config.coins.coinZoneMinLevel &&
-        _rng.chance(config.coins.coinZoneChance);
-    final zones = <Zone>[
-      Zone(
-        center: targetCenter,
-        width: targetWidth,
-        color: targetColor,
-        isTarget: true,
-        hasCoin: hasCoin,
-      ),
-    ];
-
-    final colorCount =
-        stage.minColors + _rng.nextInt(stage.maxColors - stage.minColors + 1);
-    final extra = math.min(colorCount - 1, others.length);
     final otherWidth = math.max(
       config.zone.minSize,
-      diff.zoneSize * config.zone.otherZoneSizeFactor,
+      diff.zoneSize * sizeFactor * config.zone.otherZoneSizeFactor,
     );
-    // Keep the pointer's starting spot clear so a round never begins with
-    // the pointer already sitting on a zone.
-    final startClearance = config.zone.minGap;
+    final clearance = config.zone.minGap;
 
-    var placed = 0;
-    // Decoys hug the target, on either side.
-    for (var i = 0; i < stage.decoys && placed < extra; i++) {
-      final gap = _rng.range(config.zone.decoyGapMin, config.zone.decoyGapMax);
-      final sides = _rng.chance(0.5) ? [-1, 1] : [1, -1];
-      for (final side in sides) {
-        final center = wrapAngle(
-          targetCenter + side * (targetWidth / 2 + gap + otherWidth / 2),
-        );
-        final zone = Zone(
-          center: center,
-          width: otherWidth,
-          color: others[placed],
-          isDecoy: true,
-        );
-        if (_fits(zone, zones, gap, pointerLocal, startClearance)) {
-          zones.add(zone);
-          placed++;
-          break;
-        }
-      }
-    }
-    // Remaining colors go anywhere they fit.
-    for (var attempt = 0; placed < extra && attempt < 40; attempt++) {
-      final zone = Zone(
-        center: _rng.range(0, tau),
-        width: otherWidth,
-        color: others[placed],
-      );
-      if (_fits(
-        zone,
-        zones,
-        config.zone.minGap,
-        pointerLocal,
-        startClearance,
-      )) {
-        zones.add(zone);
-        placed++;
+    // Coins and power-ups ride on the primary zone of plain rounds.
+    var hasCoin = false;
+    PowerUp? powerUp;
+    if (kind != RoundKind.split) {
+      if (level >= config.coins.coinZoneMinLevel &&
+          _rng.chance(config.coins.coinZoneChance)) {
+        hasCoin = true;
+      } else if (allowPowerUps &&
+          level >= config.powerUps.minLevel &&
+          _rng.chance(config.powerUps.chance)) {
+        powerUp = PowerUp.values[_rng.nextInt(PowerUp.values.length)];
       }
     }
 
-    return RoundSpec(
+    RoundSpec build(
+      RoundKind kind,
+      List<Zone> zones,
+      List<RoundStep> steps,
+      List<int> ballColors,
+    ) => RoundSpec(
       level: level,
       stageName: stage.name,
-      targetColor: targetColor,
+      kind: kind,
       zones: zones,
+      steps: steps,
+      ballColors: ballColors,
       pointerSpeed: speed,
       pointerDir: dir,
       ringSpeed: ringSpeed,
       isBreather: diff.isBreather,
+      pulseAmplitude: pulseA,
+      pulseOmega: pulseW,
+      ghost: ghost,
     );
+
+    switch (kind) {
+      case RoundKind.split:
+        final zones = <Zone>[
+          Zone(
+            center: primaryCenter,
+            width: width,
+            color: color,
+            isTarget: true,
+          ),
+        ];
+        // The second color sits after the first, far enough to react.
+        final far = primaryCenter + dir * width / 2;
+        final gap = _rng.range(
+          timing.minReaction * maxRel,
+          timing.minReaction * maxRel + deg(50),
+        );
+        final second = Zone(
+          center: wrapAngle(far + dir * (gap + width / 2)),
+          width: width,
+          color: others[0],
+        );
+        if (_fits(second, zones, config.zone.minGap, pointerLocal, clearance)) {
+          zones.add(second);
+          if (_rng.chance(0.5)) {
+            _placeRandom(zones, others[1], otherWidth, pointerLocal, clearance);
+          }
+          return build(
+            RoundKind.split,
+            zones,
+            const [
+              RoundStep([0], 0),
+              RoundStep([1], 1),
+            ],
+            [color, others[0]],
+          );
+        }
+        // No room for the second half: play it as a normal round.
+        return build(
+          RoundKind.normal,
+          zones,
+          const [
+            RoundStep([0], 0),
+          ],
+          [color],
+        );
+
+      case RoundKind.inverted:
+        // The ball shows the forbidden color; the fair zone is another one.
+        final forbidden = color;
+        final zones = <Zone>[
+          Zone(
+            center: primaryCenter,
+            width: width,
+            color: others[0],
+            isTarget: true,
+            hasCoin: hasCoin,
+            powerUp: powerUp,
+          ),
+        ];
+        // The forbidden zone hugs the primary, preferably before it.
+        final gap = _rng.range(
+          config.zone.decoyGapMin,
+          config.zone.decoyGapMax,
+        );
+        var placed = false;
+        for (final side in [-dir, dir]) {
+          final z = Zone(
+            center: wrapAngle(
+              primaryCenter + side * (width / 2 + gap + otherWidth / 2),
+            ),
+            width: otherWidth,
+            color: forbidden,
+            isDecoy: true,
+          );
+          if (_fits(z, zones, gap, pointerLocal, clearance)) {
+            zones.add(z);
+            placed = true;
+            break;
+          }
+        }
+        placed =
+            placed ||
+            _placeRandom(zones, forbidden, otherWidth, pointerLocal, clearance);
+        if (!placed) {
+          return build(
+            RoundKind.normal,
+            zones,
+            const [
+              RoundStep([0], 0),
+            ],
+            [others[0]],
+          );
+        }
+        final count = math.max(
+          3,
+          stage.minColors + _rng.nextInt(stage.maxColors - stage.minColors + 1),
+        );
+        for (var i = 1; i < others.length && zones.length < count; i++) {
+          _placeRandom(zones, others[i], otherWidth, pointerLocal, clearance);
+        }
+        return build(
+          RoundKind.inverted,
+          zones,
+          [
+            RoundStep([
+              for (var i = 0; i < zones.length; i++)
+                if (zones[i].color != forbidden) i,
+            ], 0),
+          ],
+          [forbidden],
+        );
+
+      case RoundKind.normal:
+      case RoundKind.boss:
+        final zones = <Zone>[
+          Zone(
+            center: primaryCenter,
+            width: width,
+            color: color,
+            isTarget: true,
+            hasCoin: hasCoin,
+            powerUp: powerUp,
+          ),
+        ];
+        final count =
+            stage.minColors +
+            _rng.nextInt(stage.maxColors - stage.minColors + 1);
+        final extra = math.min(count - 1, others.length);
+        var placed = 0;
+        for (var i = 0; i < stage.decoys && placed < extra; i++) {
+          final gap = _rng.range(
+            config.zone.decoyGapMin,
+            config.zone.decoyGapMax,
+          );
+          final sides = _rng.chance(0.5) ? [-1, 1] : [1, -1];
+          for (final side in sides) {
+            final z = Zone(
+              center: wrapAngle(
+                primaryCenter + side * (width / 2 + gap + otherWidth / 2),
+              ),
+              width: otherWidth,
+              color: others[placed],
+              isDecoy: true,
+            );
+            if (_fits(z, zones, gap, pointerLocal, clearance)) {
+              zones.add(z);
+              placed++;
+              break;
+            }
+          }
+        }
+        while (placed < extra) {
+          if (!_placeRandom(
+            zones,
+            others[placed],
+            otherWidth,
+            pointerLocal,
+            clearance,
+          )) {
+            break;
+          }
+          placed++;
+        }
+
+        final goals = [0];
+        // Greedy zone: thin, worth more, and placed before the safe one so
+        // going for it is a real choice.
+        if (stage.bonusChance > 0 && _rng.chance(stage.bonusChance)) {
+          final bw = math.max(
+            config.bonusZone.size * sizeFactor,
+            config.bonusZone.minWindow * maxRel,
+          );
+          final lo = minLead + bw / 2;
+          final hi = lead - config.zone.minGap - bw / 2;
+          if (hi > lo) {
+            final bonus = Zone(
+              center: wrapAngle(pointerLocal + dir * _rng.range(lo, hi)),
+              width: bw,
+              color: color,
+              isBonus: true,
+            );
+            if (_fits(
+              bonus,
+              zones,
+              config.zone.minGap,
+              pointerLocal,
+              clearance,
+            )) {
+              zones.add(bonus);
+              goals.add(zones.length - 1);
+            }
+          }
+        }
+        return build(RoundKind.normal, zones, [RoundStep(goals, 0)], [color]);
+    }
+  }
+
+  RoundSpec _boss(
+    int level,
+    StageConfig stage,
+    Difficulty diff,
+    double pointerLocal,
+    int dir,
+    double speedFactor,
+  ) {
+    final b = config.boss;
+    final speed = diff.pointerSpeed * b.speedFactor * speedFactor;
+    final width = math.min(
+      deg(70),
+      math.max(b.zoneSize, config.timing.minZoneWindow * speed),
+    );
+    // Four zones, 90 degrees apart, with the pointer in the middle of a gap.
+    final colors = [for (var c = 0; c < paletteSize; c++) c];
+    _shuffle(colors);
+    final zones = [
+      for (var i = 0; i < paletteSize; i++)
+        Zone(
+          center: wrapAngle(pointerLocal + deg(45) + i * tau / paletteSize),
+          width: width,
+          color: colors[i],
+          isTarget: i == 0,
+        ),
+    ];
+    final order = [for (var i = 0; i < paletteSize; i++) i];
+    _shuffle(order);
+    final length = b.minLength + _rng.nextInt(b.maxLength - b.minLength + 1);
+    final sequence = order.take(math.min(length, paletteSize)).toList();
+    return RoundSpec(
+      level: level,
+      stageName: 'boss',
+      kind: RoundKind.boss,
+      zones: zones,
+      steps: [
+        for (final z in sequence) RoundStep([z], z),
+      ],
+      ballColors: [for (final z in sequence) zones[z].color],
+      pointerSpeed: speed,
+      pointerDir: dir,
+      ringSpeed: 0,
+      isBreather: false,
+    );
+  }
+
+  bool _placeRandom(
+    List<Zone> zones,
+    int color,
+    double width,
+    double pointerLocal,
+    double clearance,
+  ) {
+    for (var attempt = 0; attempt < 40; attempt++) {
+      final z = Zone(center: _rng.range(0, tau), width: width, color: color);
+      if (_fits(z, zones, config.zone.minGap, pointerLocal, clearance)) {
+        zones.add(z);
+        return true;
+      }
+    }
+    return false;
   }
 
   bool _fits(
@@ -223,53 +470,109 @@ class RoundGenerator {
   }) {
     const eps = 1e-6;
     final problems = <String>[];
-    final targets = spec.zones.where((z) => z.isTarget).toList();
-    if (targets.length != 1) {
-      problems.add('expected exactly one target, got ${targets.length}');
-      return problems;
+    final zones = spec.zones;
+    if (spec.steps.isEmpty) return ['round has no steps'];
+    for (final s in spec.steps) {
+      if (s.goals.isEmpty || !s.goals.contains(s.primary)) {
+        problems.add('step without a valid primary goal');
+      }
+      if (s.goals.any((g) => g < 0 || g >= zones.length)) {
+        problems.add('goal index out of range');
+        return problems;
+      }
     }
-    final target = targets.single;
-    if (spec.zones.where((z) => z.color == target.color).length != 1) {
-      problems.add('target color appears on more than one zone');
-    }
-    final rel = spec.relativeSpeed;
-    if (rel.sign != spec.pointerDir.sign ||
-        rel.abs() < spec.pointerSpeed * 0.5 - eps) {
+    if (spec.minRelativeSpeed <=
+        0.2 * spec.pointerSpeed * (1 - spec.pulseAmplitude)) {
       problems.add('ring spin too fast relative to pointer');
     }
-    final relAbs = rel.abs();
-    final nearEdge = wrapAngle(
-      target.center - spec.pointerDir * target.halfWidth,
-    );
-    final lead = travelDistance(pointerLocal, nearEdge, spec.pointerDir);
-    final reaction = isFirst
-        ? config.timing.firstRoundLead
-        : config.timing.minReaction;
-    if (lead / relAbs < reaction - eps) {
-      problems.add(
-        'target only ${(lead / relAbs * 1000).round()}ms ahead of pointer',
-      );
+    final maxRel = spec.maxRelativeSpeed;
+    final timing = config.timing;
+    // The primary zone of every step must be wide enough to hit; extra
+    // goals (other valid colors in a NOT round) are optional.
+    for (final s in spec.steps) {
+      final z = zones[s.primary];
+      if (z.width / maxRel < timing.minZoneWindow - eps) {
+        problems.add('target window too short');
+      }
+      for (final g in s.goals) {
+        if (zones[g].isBonus &&
+            zones[g].width / maxRel < config.bonusZone.minWindow - eps) {
+          problems.add('greedy zone window too short');
+        }
+      }
     }
-    if (lead + target.width > tau + eps) {
-      problems.add('target not reachable within one lap');
-    }
-    if (target.width / relAbs < config.timing.minZoneWindow - eps) {
-      problems.add('target window too short');
-    }
-    for (final z in spec.zones) {
+    for (final z in zones) {
       if (z.contains(pointerLocal)) {
         problems.add('pointer starts inside a zone');
       }
     }
-    for (var i = 0; i < spec.zones.length; i++) {
-      for (var j = i + 1; j < spec.zones.length; j++) {
-        final a = spec.zones[i], b = spec.zones[j];
+    for (var i = 0; i < zones.length; i++) {
+      for (var j = i + 1; j < zones.length; j++) {
+        final a = zones[i], b = zones[j];
         if (angleDiff(a.center, b.center).abs() <
             a.halfWidth + b.halfWidth - eps) {
           problems.add('zones overlap');
         }
-        if (a.color == b.color) problems.add('duplicate zone color');
+        if (!a.isBonus && !b.isBonus && a.color == b.color) {
+          problems.add('duplicate zone color');
+        }
       }
+    }
+
+    final dir = spec.pointerDir;
+    double nearEdge(Zone z) => wrapAngle(z.center - dir * z.halfWidth);
+    double farEdge(Zone z) => wrapAngle(z.center + dir * z.halfWidth);
+
+    if (spec.kind != RoundKind.boss) {
+      final primary = spec.target;
+      final lead = travelDistance(pointerLocal, nearEdge(primary), dir);
+      final reaction = isFirst ? timing.firstRoundLead : timing.minReaction;
+      if (lead / maxRel < reaction - eps) {
+        problems.add(
+          'target only ${(lead / maxRel * 1000).round()}ms ahead of pointer',
+        );
+      }
+      if (lead + primary.width > tau + eps) {
+        problems.add('target not reachable within one lap');
+      }
+    }
+    final ball = spec.ballColors.first;
+    final goals0 = spec.steps.first.goals.toSet();
+    switch (spec.kind) {
+      case RoundKind.normal:
+        for (var i = 0; i < zones.length; i++) {
+          if ((zones[i].color == ball) != goals0.contains(i)) {
+            problems.add('goal/color mismatch');
+          }
+        }
+      case RoundKind.inverted:
+        if (!zones.any((z) => z.color == ball)) {
+          problems.add('NOT round without the forbidden color');
+        }
+        for (var i = 0; i < zones.length; i++) {
+          if ((zones[i].color != ball) != goals0.contains(i)) {
+            problems.add('NOT round goal/color mismatch');
+          }
+        }
+      case RoundKind.split:
+        if (spec.steps.length != 2) problems.add('split needs two steps');
+        final a = zones[spec.steps[0].primary];
+        final b = zones[spec.steps[1].primary];
+        final gap = travelDistance(farEdge(a), nearEdge(b), dir);
+        if (gap / maxRel < timing.minReaction - eps) {
+          problems.add('second split color too close');
+        }
+        if (spec.ballColors.length != 2 ||
+            spec.ballColors[0] != a.color ||
+            spec.ballColors[1] != b.color) {
+          problems.add('split ball colors mismatch');
+        }
+      case RoundKind.boss:
+        final b = config.boss;
+        if (spec.steps.length < b.minLength ||
+            spec.steps.length > b.maxLength) {
+          problems.add('boss sequence length out of range');
+        }
     }
     return problems;
   }

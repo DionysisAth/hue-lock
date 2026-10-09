@@ -127,6 +127,35 @@ def ui_tick():
     )
 
 
+def sweep(f0, f1, length, gain_decay=4.0):
+    """Rising/falling sine sweep with a soft second harmonic."""
+    n = int(RATE * length)
+    out = []
+    phase = 0.0
+    for i in range(n):
+        t = i / RATE
+        f = f0 * (f1 / f0) ** (t / length)
+        phase += 2 * math.pi * f / RATE
+        out.append((math.sin(phase) + 0.3 * math.sin(2 * phase)) * math.exp(-t * gain_decay) * min(1, t / 0.004))
+    return fade_tail(out)
+
+
+def clang():
+    """Metallic hit for the shield breaking."""
+    n = int(RATE * 0.5)
+    partials = [(523, 1.0), (1371, 0.6), (2083, 0.45), (2797, 0.3)]
+    return fade_tail([
+        sum(a * math.sin(2 * math.pi * f * (i / RATE)) for f, a in partials)
+        * math.exp(-(i / RATE) * 7) * min(1, (i / RATE) / 0.002)
+        for i in range(n)
+    ])
+
+
+def mix(*parts):
+    n = max(len(p) for p in parts)
+    return [sum(p[i] if i < len(p) else 0 for p in parts) for i in range(n)]
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     write("hit.wav", lock_click())
@@ -138,6 +167,11 @@ def main():
     write("coin.wav", two_tone(1318.5, 1975.5), gain=0.6)
     write("new_best.wav", arpeggio([523.25, 659.25, 783.99, 1046.5]), gain=0.7)
     write("ui.wav", ui_tick(), gain=0.5)
+    write("fever.wav", mix(sweep(300, 1800, 0.55, 2.5), arpeggio([880, 1108.7, 1318.5, 1760], step=0.06, tail=0.25)), gain=0.75)
+    write("power_up.wav", arpeggio([1046.5, 1318.5, 1568, 2093], step=0.045, tail=0.2), gain=0.6)
+    write("shield.wav", clang(), gain=0.7)
+    write("stage.wav", arpeggio([392, 523.25, 659.25, 783.99, 1046.5], step=0.09, tail=0.5), gain=0.7)
+    write("boss.wav", mix(sweep(220, 110, 0.9, 2.0), sweep(233, 116, 0.9, 2.0)), gain=0.7)
 
 
 if __name__ == "__main__":
