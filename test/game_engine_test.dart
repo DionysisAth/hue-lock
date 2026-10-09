@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hue_lock/core/angles.dart';
+import 'package:hue_lock/game/effects.dart';
 import 'package:hue_lock/game/game_engine.dart';
 import 'package:hue_lock/game/hit_judge.dart';
 import 'package:hue_lock/game/round.dart';
@@ -85,6 +86,32 @@ void main() {
       events.whereType<HitEvent>().last.points,
       config.scoring.goodPoints * config.fever.pointsMultiplier,
     );
+  });
+
+  test('Perfects hit harder: hit-stop, effects, combo and streak events', () {
+    final events = <GameEvent>[];
+    final e = newEngine(events)..startRun(best: 0, seed: 12);
+    // Tap right now, on a frame where the pointer is on the center.
+    advance(e, timeUntil(e, e.round!.currentPrimary.center));
+    expect(e.tap(e.time)!.kind, HitKind.perfect);
+    // Shards, shockwaves, camera punch.
+    expect(e.effects.zoom, 1);
+    expect(e.effects.waves, isNotEmpty);
+    expect(
+      e.effects.particles.where((p) => p.shape == ParticleShape.shard),
+      isNotEmpty,
+    );
+    // Hit-stop: the pointer holds still for a blink, then moves on.
+    final a = e.pointerAngle();
+    advance(e, 0.03);
+    expect(e.pointerAngle(), closeTo(a, 1e-9));
+    advance(e, 0.1);
+    expect(e.pointerAngle(), isNot(closeTo(a, 1e-6)));
+    // Combo up at 3 Perfects, along with the first streak word.
+    tapTargetCenter(e);
+    tapTargetCenter(e);
+    expect(events.whereType<ComboUpEvent>().single.multiplier, 2);
+    expect(events.whereType<StreakEvent>().single.word, streakWords[3]);
   });
 
   test('the fuse burns out if the pointer passes the target', () {

@@ -61,20 +61,48 @@ def lock_click():
     return fade_tail(out)
 
 
-def chime(freq, length=0.38):
-    """Bright bell for Perfect hits."""
+def chime(freq, length=0.6):
+    """Perfect hit: a bright bell with a shimmering octave sparkle on top
+    and a soft sub "thump" underneath, so it feels bigger than a Good."""
     n = int(RATE * length)
     out = []
     for i in range(n):
         t = i / RATE
-        e = env(i, n, attack=0.002, decay=7.5)
-        s = (
+        e = env(i, n, attack=0.002, decay=6.0)
+        bell = (
             math.sin(2 * math.pi * freq * t)
             + 0.45 * math.sin(2 * math.pi * freq * 2 * t) * math.exp(-t * 6)
             + 0.2 * math.sin(2 * math.pi * freq * 3.01 * t) * math.exp(-t * 12)
         )
+        # Sparkle: two detuned high partials with a fast tremolo.
+        trem = 0.6 + 0.4 * math.sin(2 * math.pi * 18 * t)
+        sparkle = (
+            math.sin(2 * math.pi * freq * 4.0 * t)
+            + math.sin(2 * math.pi * freq * 4.02 * t)
+        ) * 0.12 * trem * math.exp(-t * 9)
+        thump = math.sin(2 * math.pi * (120 - 160 * t) * t) * math.exp(-t * 30) * 0.5
         click = math.sin(2 * math.pi * 3200 * t) * math.exp(-t * 120)
-        out.append(e * s + 0.25 * click)
+        out.append(e * bell + sparkle + thump + 0.25 * click)
+    return fade_tail(out)
+
+
+def combo_up():
+    """Combo multiplier went up: quick rising whoosh into a bright fifth."""
+    sw = sweep(400, 1600, 0.22, 3.0)
+    stab = arpeggio([1046.5, 1568.0], step=0.03, tail=0.3)
+    return mix(sw, [0.0] * int(RATE * 0.12) + stab)
+
+
+def streak():
+    """Streak word ("INSANE!"): a big major chord with shimmer."""
+    n = int(RATE * 0.9)
+    notes = [523.25, 659.25, 783.99, 1046.5, 1318.5]
+    out = []
+    for i in range(n):
+        t = i / RATE
+        trem = 0.75 + 0.25 * math.sin(2 * math.pi * 9 * t)
+        s = sum(math.sin(2 * math.pi * f * t) + 0.3 * math.sin(4 * math.pi * f * t) for f in notes)
+        out.append(s * trem * math.exp(-t * 3.2) * min(1, t / 0.01))
     return fade_tail(out)
 
 
@@ -171,6 +199,8 @@ def main():
     write("power_up.wav", arpeggio([1046.5, 1318.5, 1568, 2093], step=0.045, tail=0.2), gain=0.6)
     write("shield.wav", clang(), gain=0.7)
     write("stage.wav", arpeggio([392, 523.25, 659.25, 783.99, 1046.5], step=0.09, tail=0.5), gain=0.7)
+    write("combo_up.wav", combo_up(), gain=0.65)
+    write("streak.wav", streak(), gain=0.6)
     write("boss.wav", mix(sweep(220, 110, 0.9, 2.0), sweep(233, 116, 0.9, 2.0)), gain=0.7)
 
 

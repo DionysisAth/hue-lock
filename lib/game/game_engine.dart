@@ -47,6 +47,21 @@ const intros = <String, (String, String)>{
   'powerup': ('POWER-UP', 'hit the target to collect it'),
 };
 
+/// Praise for Perfect streaks; after the last one it repeats every 5.
+const streakWords = {
+  3: 'NICE!',
+  8: 'SUPERB!',
+  12: 'INSANE!',
+  16: 'GODLIKE!',
+  20: 'UNREAL!',
+};
+
+String? streakWord(int streak) {
+  if (streakWords.containsKey(streak)) return streakWords[streak];
+  if (streak > 20 && streak % 5 == 0) return 'UNREAL!';
+  return null;
+}
+
 /// Mechanics that change the rules: they also get a short pause every time.
 const _alwaysPause = {'not', 'split'};
 
@@ -80,6 +95,19 @@ class HitEvent extends GameEvent {
 
   /// False for the first step(s) of a split or boss round.
   final bool roundComplete;
+}
+
+/// The combo multiplier went up (x2, x3, ...).
+class ComboUpEvent extends GameEvent {
+  const ComboUpEvent(this.multiplier);
+  final int multiplier;
+}
+
+/// A Perfect streak milestone ("NICE!", "INSANE!", ...).
+class StreakEvent extends GameEvent {
+  const StreakEvent(this.word, this.streak);
+  final String word;
+  final int streak;
 }
 
 class NewBestEvent extends GameEvent {
@@ -231,6 +259,11 @@ class GameEngine extends ChangeNotifier {
   bool _bossGoShown = false;
   double _bossIntro = 0;
 
+  /// A tiny freeze after a Perfect, for impact. Only ever makes the next
+  /// target easier to reach (it is always well ahead of the pointer).
+  double _hitStop = 0;
+  static const _hitStopPerfect = 0.055;
+
   /// Mechanics this player has already had explained (persisted by the UI).
   final seen = <String>{};
 
@@ -322,6 +355,7 @@ class GameEngine extends ChangeNotifier {
     lastSummary = null;
     effects.clear();
     effects.glowTarget = 0;
+    _hitStop = 0;
     _newSet();
 
     final pointer = round?.pointerAngleAt(time) ?? _idleAngle;
@@ -366,6 +400,11 @@ class GameEngine extends ChangeNotifier {
         }
       case GamePhase.playing:
         final r = round;
+        if (_hitStop > 0 && r != null) {
+          final freeze = math.min(dt, _hitStop);
+          r.startTime += freeze;
+          _hitStop -= freeze;
+        }
         if (r != null && r.travelAt(time) > r.stepDeadline) {
           // The fuse burnt out: the pointer passed the target untouched.
           _onMiss(r, Judgement.timeout(r.localPointerAt(time)), time);
@@ -423,6 +462,7 @@ class GameEngine extends ChangeNotifier {
 
     // Fever applies from the hit after it starts.
     final feverBefore = fever;
+    final multiplierBefore = multiplier;
     if (perfect) {
       perfects++;
       perfectStreak++;
@@ -445,22 +485,48 @@ class GameEngine extends ChangeNotifier {
     final coinBonus = zone.hasCoin ? config.coins.coinZoneBonus : 0;
     zoneCoins += coinBonus;
 
-    // Juice.
+    // Juice: a Good is a click, a Perfect is an event.
     final worldAngle = r.ringAngleAt(t) + zone.center;
+    final pointerAngle = r.pointerAngleAt(t);
     effects.locks.add(
       LockFlash(worldAngle, zone.width, zone.color, perfect: perfect),
     );
-    effects.burst(
-      r.pointerAngleAt(t),
-      zone.color,
-      count: perfect ? 22 : 10,
-      power: perfect ? 1.4 : 0.9,
-    );
     effects.hitPulse = 1;
+    effects.ringPulse = perfect ? 1 : 0.45;
+    effects.shatter(
+      worldAngle,
+      zone.width,
+      zone.color,
+      count: perfect ? 22 : 8,
+    );
+    effects.burst(
+      pointerAngle,
+      zone.color,
+      count: perfect ? 16 : 8,
+      power: perfect ? 1.4 : 0.8,
+    );
+    if (perfect) {
+      _hitStop = _hitStopPerfect;
+      effects.perfectFlash = 1;
+      effects.zoom = 1;
+      effects.edgeFlash = 1;
+      effects.edgeColor = zone.color;
+      effects.sparkle(pointerAngle, count: 6 + math.min(perfectStreak, 10));
+      effects.waves.add(
+        Shockwave(
+          math.sin(pointerAngle),
+          -math.cos(pointerAngle),
+          zone.color,
+          maxRadius: 0.55,
+        ),
+      );
+      effects.waves.add(
+        Shockwave(0, 0, -1, maxRadius: 1.5, life: 0.5, width: 0.025),
+      );
+    }
     if (zone.isBonus) {
       effects.texts.add(FloatingText('GREEDY +$points', zone.color, big: true));
     } else if (perfect) {
-      effects.perfectFlash = 1;
       effects.texts.add(
         FloatingText(
           multiplier > 1 ? 'PERFECT x$multiplier' : 'PERFECT',
@@ -469,10 +535,24 @@ class GameEngine extends ChangeNotifier {
         ),
       );
     }
+    if (multiplier > multiplierBefore) {
+      effects.waves.add(
+        Shockwave(0, 0, zone.color, maxRadius: 1.9, life: 0.6, width: 0.04),
+      );
+      _emit(ComboUpEvent(multiplier));
+    }
+    final word = perfect ? streakWord(perfectStreak) : null;
+    if (word != null) {
+      effects.texts.add(FloatingText(word, zone.color, life: 1.0, huge: true));
+      _emit(StreakEvent(word, perfectStreak));
+    }
     if (coinBonus > 0) effects.texts.add(FloatingText('+$coinBonus coins', -1));
 
     if (perfect && !fever && perfectStreak >= config.fever.perfectStreak) {
       fever = true;
+      effects.waves.add(
+        Shockwave(0, 0, zone.color, maxRadius: 2.6, life: 0.8, width: 0.08),
+      );
       effects.banner = Announcement(
         'FEVER!',
         subtitle: 'x${config.fever.pointsMultiplier} points',
@@ -501,6 +581,7 @@ class GameEngine extends ChangeNotifier {
     if (!newBestReached && bestAtRunStart > 0 && score > bestAtRunStart) {
       newBestReached = true;
       effects.texts.add(FloatingText('NEW BEST!', -1, life: 1.2, big: true));
+      effects.confetti();
       _emit(NewBestEvent(score));
     }
 
@@ -524,6 +605,7 @@ class GameEngine extends ChangeNotifier {
         subtitle: '+${config.boss.clearBonus}',
         life: 1.3,
       );
+      effects.confetti(count: 50);
       _emit(const BossEvent(cleared: true));
     }
     setDone++;
@@ -551,6 +633,10 @@ class GameEngine extends ChangeNotifier {
       perfectStreak * 0.12 + math.min(level, 120) / 240 + (fever ? 0.4 : 0),
     );
 
+    // The ball morphs into the next color with a splash.
+    effects.ballFrom = r.spec.ballColors.last;
+    effects.ballMorph = 1;
+
     // The pointer keeps moving; the next round starts from where it is.
     _startRound(
       pointer: r.pointerAngleAt(t),
@@ -559,6 +645,19 @@ class GameEngine extends ChangeNotifier {
       t: t,
       previousColor: r.spec.targetColor,
     );
+    final next = round!.spec;
+    if (next.kind != RoundKind.boss) {
+      effects.waves.add(
+        Shockwave(
+          0,
+          0,
+          next.ballColors.first,
+          maxRadius: 0.55,
+          life: 0.35,
+          width: 0.06,
+        ),
+      );
+    }
     notifyListeners();
   }
 

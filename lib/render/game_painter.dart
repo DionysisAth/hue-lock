@@ -69,10 +69,22 @@ class GamePainter extends CustomPainter {
 
     _paintBackground(canvas, size, layout, fx);
 
+    _paintStars(canvas, size, fx);
+
     canvas.save();
     if (fx.shake > 0) {
       final s = fx.shake * fx.shake * r * 0.05;
       canvas.translate(math.sin(t * 91) * s, math.cos(t * 77) * s);
+    }
+    // Camera punch-in on Perfects, and the ring "breathing" on every hit.
+    final punch =
+        1 +
+        0.035 * Curves.easeOut.transform(fx.zoom) +
+        0.018 * math.sin(fx.ringPulse * math.pi);
+    if (punch != 1) {
+      canvas.translate(c.dx, c.dy);
+      canvas.scale(punch);
+      canvas.translate(-c.dx, -c.dy);
     }
 
     final round = engine.round;
@@ -122,6 +134,7 @@ class GamePainter extends CustomPainter {
           alpha: ghostAlpha,
         );
       }
+      if (!dead) _paintSweetSpots(canvas, layout, ringW, round, ringAngle);
       if (dead) {
         final pulse = 0.5 + 0.5 * math.sin(engine.phaseElapsed * 14);
         _paintZone(
@@ -167,8 +180,10 @@ class GamePainter extends CustomPainter {
       _paintMissGuide(canvas, layout, ringW, round, ringAngle, pointerAngle);
     }
 
+    if (!dead) _paintTrail(canvas, layout, ringW, pointerAngle, round);
     _paintPointer(canvas, layout, ringW, pointerAngle, dead, round);
     _paintBall(canvas, layout, round, fx);
+    _paintWaves(canvas, layout, fx);
     _paintParticles(canvas, layout, fx);
     _paintTexts(canvas, layout, fx);
     _paintBanner(canvas, layout, ringW, fx);
@@ -182,6 +197,24 @@ class GamePainter extends CustomPainter {
           ..color = Colors.white.withValues(
             alpha: fx.perfectFlash * 0.12 * (theme.dark ? 1 : 0.6),
           ),
+      );
+    }
+    if (fx.edgeFlash > 0) {
+      final rect = Offset.zero & size;
+      final color = engine.fever
+          ? HSVColor.fromAHSV(1, (t * 120) % 360, 0.85, 1).toColor()
+          : palette[fx.edgeColor];
+      canvas.drawRect(
+        rect,
+        Paint()
+          ..shader = RadialGradient(
+            radius: 1.05,
+            colors: [
+              color.withValues(alpha: 0),
+              color.withValues(alpha: 0.38 * fx.edgeFlash),
+            ],
+            stops: const [0.72, 1],
+          ).createShader(rect),
       );
     }
     if (fx.shieldFlash > 0) {
@@ -603,7 +636,16 @@ class GamePainter extends CustomPainter {
         _label(canvas, '?', c, br * 0.9, color: theme.text);
       }
     } else {
-      skin.paint(canvas, c, br, palette[colors.first], t);
+      // Morph from the previous color, so each new round "pours" in.
+      final to = palette[colors.first];
+      final color = fx.ballMorph > 0 && kind != RoundKind.split
+          ? Color.lerp(
+              palette[fx.ballFrom],
+              to,
+              Curves.easeOut.transform(1 - fx.ballMorph),
+            )!
+          : to;
+      skin.paint(canvas, c, br, color, t);
     }
 
     if (kind == RoundKind.inverted && spec != null) {
@@ -757,14 +799,180 @@ class GamePainter extends CustomPainter {
   }
 
   void _paintParticles(Canvas canvas, RingLayout layout, Effects fx) {
-    final paint = Paint();
+    final paint = Paint()..isAntiAlias = true;
     for (final p in fx.particles) {
-      paint.color = palette[p.color].withValues(alpha: 1 - p.t);
+      final base = p.color < 0 ? Colors.white : palette[p.color];
+      final fade = p.shape == ParticleShape.confetti
+          ? (1 - math.max(0, p.t - 0.7) / 0.3)
+          : 1 - p.t;
+      paint.color = base.withValues(alpha: fade.clamp(0.0, 1.0));
+      final pos = layout.center + Offset(p.x, p.y) * layout.radius;
+      final size = p.size * layout.radius;
+      switch (p.shape) {
+        case ParticleShape.dot:
+          canvas.drawCircle(pos, size * (1 - 0.5 * p.t), paint);
+        case ParticleShape.shard:
+          canvas.save();
+          canvas.translate(pos.dx, pos.dy);
+          canvas.rotate(p.rotation);
+          final s = size * (1 - 0.4 * p.t);
+          canvas.drawPath(
+            Path()
+              ..moveTo(-s, -s * 0.35)
+              ..lineTo(s, 0)
+              ..lineTo(-s * 0.6, s * 0.45)
+              ..close(),
+            paint,
+          );
+          canvas.restore();
+        case ParticleShape.star:
+          canvas.save();
+          canvas.translate(pos.dx, pos.dy);
+          canvas.rotate(p.rotation);
+          final s = size * math.sin(p.t * math.pi);
+          final path = Path();
+          for (var i = 0; i < 8; i++) {
+            final a = i * math.pi / 4;
+            final rr = i.isEven ? s : s * 0.28;
+            final q = Offset(math.cos(a), math.sin(a)) * rr;
+            i == 0 ? path.moveTo(q.dx, q.dy) : path.lineTo(q.dx, q.dy);
+          }
+          canvas.drawPath(path..close(), paint);
+          canvas.restore();
+        case ParticleShape.confetti:
+          canvas.save();
+          canvas.translate(pos.dx, pos.dy);
+          canvas.rotate(p.rotation);
+          // Flip in 3D: squash one axis with the spin.
+          canvas.scale(1, math.cos(p.rotation * 1.7).abs() * 0.8 + 0.2);
+          canvas.drawRect(
+            Rect.fromCenter(
+              center: Offset.zero,
+              width: size * 1.4,
+              height: size * 0.8,
+            ),
+            paint,
+          );
+          canvas.restore();
+      }
+    }
+  }
+
+  void _paintWaves(Canvas canvas, RingLayout layout, Effects fx) {
+    for (final w in fx.waves) {
+      final k = Curves.easeOutCubic.transform(w.t);
+      final color = w.color < 0 ? Colors.white : palette[w.color];
       canvas.drawCircle(
-        layout.center + Offset(p.x, p.y) * layout.radius,
-        p.size * layout.radius * (1 - 0.5 * p.t),
-        paint,
+        layout.center + Offset(w.x, w.y) * layout.radius,
+        w.maxRadius * layout.radius * k,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w.width * layout.radius * (1 - w.t) + 0.5
+          ..color = color.withValues(alpha: (1 - w.t) * 0.85),
       );
+    }
+  }
+
+  /// The Perfect window inside each target: a bright band to aim for.
+  void _paintSweetSpots(
+    Canvas canvas,
+    RingLayout layout,
+    double ringW,
+    ActiveRound round,
+    double ringAngle,
+  ) {
+    final spec = round.spec;
+    final timing = engine.config.timing;
+    final speed = spec.relativeSpeed.abs();
+    final rect = Rect.fromCircle(center: layout.center, radius: layout.radius);
+    final pulse = 0.75 + 0.25 * math.sin(engine.time * 6);
+    for (final g in round.currentStep.goals) {
+      if (round.consumed.contains(g)) continue;
+      final z = spec.zones[g];
+      if (z.isBonus) continue;
+      final half = math.min(
+        z.halfWidth,
+        math.max(
+          z.width * timing.perfectFraction / 2,
+          timing.perfectMinWindow * speed / 2,
+        ),
+      );
+      final center = ringAngle + z.center;
+      canvas.drawArc(
+        rect,
+        _arcStart(center - half),
+        half * 2,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = ringW * 0.38
+          ..strokeCap = StrokeCap.round
+          ..color = Colors.white.withValues(
+            alpha: (engine.fever ? 0.7 : 0.45) * pulse,
+          ),
+      );
+    }
+  }
+
+  /// A short fading streak behind the pointer.
+  void _paintTrail(
+    Canvas canvas,
+    RingLayout layout,
+    double ringW,
+    double angle,
+    ActiveRound? round,
+  ) {
+    final dir = round?.spec.pointerDir ?? 1;
+    final speed = round == null || engine.phase != GamePhase.playing
+        ? 0.0
+        : round.relativeSpeedAt(engine.time);
+    final length = math.min(0.6, speed * 0.09);
+    if (length < 0.02) return;
+    const segments = 7;
+    final rect = Rect.fromCircle(center: layout.center, radius: layout.radius);
+    for (var i = 0; i < segments; i++) {
+      final a0 = angle - dir * length * i / segments;
+      final a1 = angle - dir * length * (i + 1) / segments;
+      final color = engine.fever
+          ? HSVColor.fromAHSV(
+              1,
+              (engine.time * 200 + i * 25) % 360,
+              0.8,
+              1,
+            ).toColor()
+          : theme.pointer;
+      canvas.drawArc(
+        rect,
+        _arcStart(math.min(a0, a1)),
+        (a1 - a0).abs(),
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = ringW * (0.9 - i * 0.09)
+          ..color = color.withValues(alpha: 0.32 * (1 - i / segments)),
+      );
+    }
+  }
+
+  /// Slow drifting dust in the background; it speeds up with the combo.
+  void _paintStars(Canvas canvas, Size size, Effects fx) {
+    const count = 46;
+    final speed = 12 + 60 * fx.glow + (engine.fever ? 90 : 0);
+    final drift = engine.time * speed;
+    final paint = Paint();
+    final base = theme.dark ? Colors.white : theme.text;
+    for (var i = 0; i < count; i++) {
+      // Deterministic pseudo-random placement per star.
+      final hx = ((i * 73856093) % 1000) / 1000;
+      final hy = ((i * 19349663) % 1000) / 1000;
+      final hs = ((i * 83492791) % 1000) / 1000;
+      final x = hx * size.width;
+      final y =
+          size.height - ((hy * size.height + drift * (0.4 + hs)) % size.height);
+      paint.color = base.withValues(
+        alpha: (theme.dark ? 0.08 : 0.05) + 0.12 * hs * (0.5 + fx.glow),
+      );
+      canvas.drawCircle(Offset(x, y), 0.8 + 1.6 * hs, paint);
     }
   }
 
@@ -773,12 +981,18 @@ class GamePainter extends CustomPainter {
     for (final text in fx.texts.reversed) {
       final k = Curves.easeOut.transform(text.t);
       final color = text.color < 0 ? theme.text : palette[text.color];
+      final pop = text.huge
+          ? Curves.elasticOut.transform((text.age / 0.45).clamp(0.0, 1.0))
+          : 1.0;
       final tp = TextPainter(
         text: TextSpan(
           text: text.text,
           style: TextStyle(
             color: color.withValues(alpha: 1 - text.t * text.t),
-            fontSize: text.big ? 30 : 20,
+            fontSize: math.max(
+              1,
+              (text.huge ? 44 : (text.big ? 30 : 20)) * pop,
+            ),
             fontWeight: FontWeight.w900,
             letterSpacing: 2,
             shadows: theme.dark

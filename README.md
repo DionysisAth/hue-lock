@@ -39,6 +39,16 @@ This repository implements its **MVP milestone** (design doc section 15).
 - **Stages.** Every 20 levels the run enters a new stage (Dawn, Neon Reef,
   Ember, Aurora, Nebula, Void, …). Each has its own background tint and a
   banner, and the music gets faster.
+- **Juice.** Every hit locks the zone and shatters it into shards. Perfects
+  add more on top:
+  - a tiny hit-stop, a camera punch-in, shockwave rings and sparkles
+  - an edge glow and a richer chime that rises with the streak, plus a
+    double-tick haptic
+  - streak words ("NICE!", "INSANE!", "GODLIKE!") and a combo-up whoosh
+  The Perfect sweet spot is drawn inside each target, a meter shows the
+  streak toward Fever, and the score counts up with a "+N" pop. The ball
+  morphs into the next color, the pointer leaves a trail, background dust
+  speeds up with the combo, and a new best rains confetti.
 - **Adaptive music.** Four stacked layers build with the run, Fever plays
   the full mix, and a miss cuts it to silence.
 

@@ -19,6 +19,7 @@ double timeUntil(GameEngine engine, double localTarget) =>
 
 /// Advances the engine in ~60 FPS steps.
 void advance(GameEngine engine, double seconds) {
+  if (!seconds.isFinite) throw StateError('cannot advance by $seconds');
   var left = seconds;
   while (left > 1e-12) {
     final dt = left < 1 / 60 ? left : 1 / 60;
@@ -40,10 +41,10 @@ void waitUntilPlaying(GameEngine engine) {
 void tapTargetCenter(GameEngine engine) {
   waitUntilPlaying(engine);
   final target = engine.round!.currentPrimary;
-  final wait = timeUntil(engine, target.center);
-  advance(engine, wait * 0.5);
-  // Tap timestamped exactly at the center crossing, between frames.
-  engine.tap(engine.time + wait * 0.5);
+  advance(engine, timeUntil(engine, target.center) * 0.5);
+  // Re-aim after the frames went by (a Perfect's hit-stop shifts the round),
+  // then tap timestamped exactly at the center crossing, between frames.
+  engine.tap(engine.time + timeUntil(engine, target.center));
 }
 
 /// Plays perfect taps until [rounds] more rounds are cleared.

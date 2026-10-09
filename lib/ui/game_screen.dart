@@ -181,10 +181,16 @@ class _GameScreenState extends State<GameScreen>
         if (coinBonus > 0) s.audio.play(Sfx.coin);
       case NewBestEvent():
         s.audio.play(Sfx.newBest);
+        s.haptics.celebrate();
+      case ComboUpEvent():
+        s.audio.play(Sfx.comboUp);
+      case StreakEvent():
+        s.audio.play(Sfx.streak);
+        s.haptics.celebrate();
       case FeverEvent(:final active):
         if (active) {
           s.audio.play(Sfx.fever);
-          s.haptics.perfect();
+          s.haptics.celebrate();
         }
         _updateMusic();
       case PowerUpEvent(:final powerUp):
@@ -473,15 +479,7 @@ class _Hud extends StatelessWidget {
                 style: _label(theme, size: 12),
               ),
               const SizedBox(height: 4),
-              Text(
-                '${e.score}',
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 64,
-                  height: 1,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
+              _AnimatedScore(score: e.score, theme: theme),
               const SizedBox(height: 6),
               Text(
                 e.newBestReached
@@ -489,7 +487,14 @@ class _Hud extends StatelessWidget {
                     : 'BEST ${math.max(e.bestAtRunStart, e.score)}',
                 style: _label(theme),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
+              _FeverMeter(
+                streak: e.perfectStreak,
+                goal: e.config.fever.perfectStreak,
+                fever: e.fever,
+                theme: theme,
+              ),
+              const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 6,
@@ -500,6 +505,161 @@ class _Hud extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Score that counts up to its new value with a little pop and a "+N".
+class _AnimatedScore extends StatefulWidget {
+  const _AnimatedScore({required this.score, required this.theme});
+
+  final int score;
+  final RingTheme theme;
+
+  @override
+  State<_AnimatedScore> createState() => _AnimatedScoreState();
+}
+
+class _AnimatedScoreState extends State<_AnimatedScore>
+    with SingleTickerProviderStateMixin {
+  late final _anim = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
+  int _from = 0;
+  int _gain = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _from = widget.score;
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedScore old) {
+    super.didUpdateWidget(old);
+    if (widget.score != old.score) {
+      _from = widget.score < old.score ? widget.score : _shown;
+      _gain = widget.score - old.score;
+      _anim.forward(from: 0);
+    }
+  }
+
+  int get _shown {
+    final k = Curves.easeOut.transform(_anim.value);
+    return (_from + (widget.score - _from) * k).round();
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, _) {
+        final v = _anim.value;
+        // Quick swell and settle.
+        final scale = 1 + 0.22 * math.sin(math.min(1, v * 2.2) * math.pi);
+        final showGain = _gain > 0 && _anim.isAnimating;
+        return SizedBox(
+          height: 66,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Transform.scale(
+                scale: scale,
+                child: Text(
+                  '${_anim.isAnimating ? _shown : widget.score}',
+                  style: TextStyle(
+                    color: theme.text,
+                    fontSize: 64,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              if (showGain)
+                Positioned(
+                  right: -8,
+                  top: -6 - 18 * v,
+                  child: FractionalTranslation(
+                    translation: const Offset(1, 0),
+                    child: Opacity(
+                      opacity: (1 - v).clamp(0.0, 1.0),
+                      child: Text(
+                        '+$_gain',
+                        style: TextStyle(
+                          color: HuePalette.standard[2],
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Perfect streak progress toward Fever: one segment per Perfect.
+class _FeverMeter extends StatelessWidget {
+  const _FeverMeter({
+    required this.streak,
+    required this.goal,
+    required this.fever,
+    required this.theme,
+  });
+
+  final int streak;
+  final int goal;
+  final bool fever;
+  final RingTheme theme;
+
+  static const _hot = Color(0xFFFF7A2F);
+
+  @override
+  Widget build(BuildContext context) {
+    final filled = fever ? goal : math.min(streak, goal);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < goal; i++)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutBack,
+            margin: const EdgeInsets.symmetric(horizontal: 2.5),
+            width: i < filled ? 22 : 16,
+            height: 6,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(3),
+              color: i < filled
+                  ? Color.lerp(
+                      HuePalette.standard[2],
+                      _hot,
+                      goal <= 1 ? 1 : i / (goal - 1),
+                    )
+                  : theme.text.withValues(alpha: 0.14),
+              boxShadow: i < filled && theme.dark
+                  ? [
+                      BoxShadow(
+                        color: _hot.withValues(alpha: fever ? 0.8 : 0.4),
+                        blurRadius: fever ? 10 : 5,
+                      ),
+                    ]
+                  : null,
+            ),
+          ),
+      ],
     );
   }
 }

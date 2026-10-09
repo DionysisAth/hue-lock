@@ -5,7 +5,20 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-enum Sfx { hit, fail, coin, newBest, ui, fever, powerUp, shield, stage, boss }
+enum Sfx {
+  hit,
+  fail,
+  coin,
+  newBest,
+  ui,
+  fever,
+  powerUp,
+  shield,
+  stage,
+  boss,
+  comboUp,
+  streak,
+}
 
 /// Sound effects. Pools are preloaded at startup so a tap never waits on
 /// file I/O. Consecutive Perfects play a rising scale.
@@ -31,6 +44,8 @@ class AudioService {
     'shield': 'audio/shield.wav',
     'stage': 'audio/stage.wav',
     'boss': 'audio/boss.wav',
+    'comboUp': 'audio/combo_up.wav',
+    'streak': 'audio/streak.wav',
   };
 
   Future<void> init() async {
@@ -243,7 +258,28 @@ class HapticsService {
   bool enabled = true;
 
   void hit() => _run(HapticFeedback.lightImpact);
-  void perfect() => _run(HapticFeedback.mediumImpact);
+
+  /// A Perfect is a double "tick-tock": medium, then a light echo.
+  void perfect() {
+    _run(HapticFeedback.mediumImpact);
+    if (enabled) {
+      Future<void>.delayed(
+        const Duration(milliseconds: 55),
+        HapticFeedback.lightImpact,
+      );
+    }
+  }
+
+  void celebrate() {
+    _run(HapticFeedback.heavyImpact);
+    if (enabled) {
+      Future<void>.delayed(
+        const Duration(milliseconds: 90),
+        HapticFeedback.mediumImpact,
+      );
+    }
+  }
+
   void fail() => _run(HapticFeedback.heavyImpact);
   void tick() => _run(HapticFeedback.selectionClick);
 
