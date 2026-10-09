@@ -71,8 +71,7 @@
   },
 
   "announce": {
-    "_comment": "Pauses (round frozen, banner shown) so new situations are readable before the pointer moves. firstTime = the first time a player ever meets a mechanic; repeat = every later NOT / split round.",
-    "firstTimeMs": 2400,
+    "_comment": "Pauses (round frozen, banner shown) so rule changes are readable before the pointer moves: repeat = every NOT / split round. New mechanics are explained by a banner without pausing (Levels mode teaches them).",
     "repeatMs": 1000,
     "shieldMs": 1000
   },

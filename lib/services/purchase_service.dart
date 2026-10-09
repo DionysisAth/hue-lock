@@ -6,8 +6,18 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 /// Store products. Create these ids in App Store Connect and Google Play
 /// Console.
 class Products {
+  /// Non-consumable: no more interstitials.
   static const removeAds = 'hue_lock_remove_ads';
-  static const all = {removeAds};
+
+  /// Non-consumable, offered once: remove ads + 1000 coins + the exclusive
+  /// Crown ball + 5 continue tokens.
+  static const starterPack = 'hue_lock_starter_pack';
+
+  /// Consumable: 5 continue tokens.
+  static const tokens5 = 'hue_lock_tokens_5';
+
+  static const all = {removeAds, starterPack, tokens5};
+  static const consumables = {tokens5};
 }
 
 /// In-app purchases (App Store + Google Play billing).
@@ -108,9 +118,12 @@ class StorePurchaseService extends PurchaseService {
       notifyListeners();
       return;
     }
-    await _iap.buyNonConsumable(
-      purchaseParam: PurchaseParam(productDetails: product),
-    );
+    final param = PurchaseParam(productDetails: product);
+    if (Products.consumables.contains(productId)) {
+      await _iap.buyConsumable(purchaseParam: param);
+    } else {
+      await _iap.buyNonConsumable(purchaseParam: param);
+    }
   }
 
   @override

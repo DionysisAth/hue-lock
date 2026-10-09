@@ -11,7 +11,7 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = Services.of(context);
     return ListenableBuilder(
-      listenable: Listenable.merge([s.profile, s.purchases]),
+      listenable: Listenable.merge([s.profile, s.purchases, s.gameServices]),
       builder: (context, _) {
         final p = s.profile.profile;
         final theme = ringThemeById(p.theme);
@@ -66,6 +66,40 @@ class SettingsScreen extends StatelessWidget {
                 value: p.haptics,
                 onChanged: (v) => s.profile.update((p) => p.haptics = v),
               ),
+              SwitchListTile(
+                title: Text('Daily reminder', style: text),
+                subtitle: Text(
+                  'A notification when a new Daily Challenge is live',
+                  style: sub,
+                ),
+                value: p.dailyReminder,
+                onChanged: s.reminders.enabled
+                    ? (v) async {
+                        final on = await s.reminders.setDailyReminder(v);
+                        s.profile.update((p) => p.dailyReminder = on);
+                      }
+                    : null,
+              ),
+              if (s.gameServices.enabled)
+                ListTile(
+                  leading: Icon(
+                    Icons.sports_esports_rounded,
+                    color: theme.text,
+                  ),
+                  title: Text(
+                    s.gameServices.signedIn
+                        ? 'Signed in as ${s.gameServices.playerName ?? 'player'}'
+                        : 'Sign in to save progress online',
+                    style: text,
+                  ),
+                  subtitle: Text(
+                    'Leaderboards, achievements and cloud save',
+                    style: sub,
+                  ),
+                  onTap: s.gameServices.signedIn
+                      ? null
+                      : () => s.gameServices.signIn(),
+                ),
               SwitchListTile(
                 title: Text('Colorblind mode', style: text),
                 subtitle: Text(

@@ -1,0 +1,70 @@
+{
+  "_comment": "Levels mode. Each level overrides the base game_config.json: 'stage' uses the same keys as a base stage (missing keys = off), 'speed' / 'size' are pointer deg/s and zone deg at the start, rising per target with speedPerTarget / sizePerTarget. stars = Perfect ratio needed for 2 and 3 stars.",
+  "stars": [0.5, 0.8],
+  "chapters": [
+    {
+      "title": "The Basics",
+      "levels": [
+        { "title": "First Lock", "teaches": "Tap when the pointer is on the zone that matches the ball. The fuse around the ball burns down: don't let the pointer pass the zone.", "targets": 8, "speed": 95, "speedPerTarget": 1, "size": 64, "sizePerTarget": 0, "stage": { "colors": [1, 1] } },
+        { "title": "Sweet Spot", "teaches": "The bright band inside each zone is the Perfect window. Perfects are worth 3, and in a row they raise your combo.", "targets": 10, "speed": 115, "speedPerTarget": 2, "size": 58, "sizePerTarget": -0.5, "stage": { "colors": [1, 1] } },
+        { "title": "Two Colors", "teaches": "Now there are two colors. Only the one matching the ball counts.", "targets": 12, "speed": 120, "speedPerTarget": 2, "size": 54, "sizePerTarget": -0.5, "stage": { "colors": [2, 2] } }
+      ]
+    },
+    {
+      "title": "Turnaround",
+      "levels": [
+        { "title": "About Face", "teaches": "REVERSE: the pointer flips direction after every hit.", "targets": 10, "speed": 115, "speedPerTarget": 2, "size": 56, "sizePerTarget": -0.5, "stage": { "colors": [1, 1], "reverse": 1 } },
+        { "title": "Greedy", "teaches": "GREEDY: a thin gold-rimmed zone is worth +5. Go for it, or wait for the safe one.", "targets": 12, "speed": 120, "speedPerTarget": 2, "size": 54, "sizePerTarget": -0.4, "stage": { "colors": [2, 2], "reverse": 0.5, "bonus": 0.7 } },
+        { "title": "Lock Sets", "teaches": "Clear the dots above the ball in a row for a set bonus. Power-ups ride on targets: shield, slow-mo and wide.", "targets": 14, "speed": 125, "speedPerTarget": 2, "size": 52, "sizePerTarget": -0.4, "stage": { "colors": [2, 3], "reverse": 1, "locks": [3, 4], "bonus": 0.3 }, "powerUpChance": 0.35 }
+      ]
+    },
+    {
+      "title": "Opposites",
+      "levels": [
+        { "title": "Not That One", "teaches": "NOT: the ball shows a crossed-out color. Hit any color EXCEPT that one.", "targets": 10, "speed": 110, "speedPerTarget": 1.5, "size": 50, "sizePerTarget": -0.3, "stage": { "colors": [3, 3], "inverted": 1 } },
+        { "title": "Decoys", "teaches": "DECOYS: a wrong color sits right next to the right one. Tap a little early or late and you lose.", "targets": 12, "speed": 125, "speedPerTarget": 2, "size": 48, "sizePerTarget": -0.4, "stage": { "colors": [3, 4], "decoys": 1 } },
+        { "title": "Mixed Signals", "teaches": "NOT rounds, decoys and reverse together. Read the ball first.", "targets": 14, "speed": 130, "speedPerTarget": 2, "size": 46, "sizePerTarget": -0.3, "stage": { "colors": [3, 4], "decoys": 1, "reverse": 0.6, "inverted": 0.4 } }
+      ]
+    },
+    {
+      "title": "Spin Cycle",
+      "levels": [
+        { "title": "Carousel", "teaches": "SPIN: the ring turns too, so zones move while the pointer moves.", "targets": 10, "speed": 115, "speedPerTarget": 2, "size": 52, "sizePerTarget": -0.4, "stage": { "colors": [2, 2], "rotate": 1 } },
+        { "title": "Ghosts", "teaches": "GHOST: zones blink in and out. They always start visible: remember where they are.", "targets": 10, "speed": 115, "speedPerTarget": 2, "size": 52, "sizePerTarget": -0.4, "stage": { "colors": [2, 3], "ghost": 1 } },
+        { "title": "Haunted Carousel", "teaches": "Spinning ghosts. Watch the ring, not just the pointer.", "targets": 14, "speed": 125, "speedPerTarget": 2, "size": 48, "sizePerTarget": -0.3, "stage": { "colors": [3, 4], "rotate": 0.8, "ghost": 0.7, "reverse": 0.5 } }
+      ]
+    },
+    {
+      "title": "Split Second",
+      "levels": [
+        { "title": "Two at Once", "teaches": "SPLIT: the ball is two colors. Hit the left one first, then the right one, in one lap.", "targets": 8, "speed": 105, "speedPerTarget": 1.5, "size": 50, "sizePerTarget": -0.3, "stage": { "colors": [2, 3], "split": 1 } },
+        { "title": "Split Decision", "teaches": "Splits that change direction. The second color is always after the first.", "targets": 10, "speed": 115, "speedPerTarget": 2, "size": 48, "sizePerTarget": -0.3, "stage": { "colors": [2, 4], "split": 0.7, "reverse": 1 } },
+        { "title": "Power Play", "teaches": "Lots of power-ups and gold zones. Collect a shield before the hard part.", "targets": 16, "speed": 135, "speedPerTarget": 2.5, "size": 46, "sizePerTarget": -0.4, "stage": { "colors": [2, 4], "split": 0.3, "inverted": 0.3, "bonus": 0.5, "decoys": 1 }, "powerUpChance": 0.5 }
+      ]
+    },
+    {
+      "title": "Surge",
+      "levels": [
+        { "title": "Surge", "teaches": "SURGE: the orange pointer speeds up and slows down. Watch it, don't count it.", "targets": 10, "speed": 110, "speedPerTarget": 2, "size": 52, "sizePerTarget": -0.4, "stage": { "colors": [2, 2], "pulse": 1 } },
+        { "title": "Rollercoaster", "teaches": "Surging pointer on a spinning ring.", "targets": 12, "speed": 120, "speedPerTarget": 2, "size": 50, "sizePerTarget": -0.4, "stage": { "colors": [2, 3], "pulse": 0.8, "rotate": 0.6 } },
+        { "title": "Fever Pitch", "teaches": "5 Perfects in a row starts FEVER: double points and a faster pointer. Aim for the sweet spot every time.", "targets": 18, "speed": 130, "speedPerTarget": 2, "size": 54, "sizePerTarget": -0.3, "stage": { "colors": [1, 2] } }
+      ]
+    },
+    {
+      "title": "Memory",
+      "levels": [
+        { "title": "Remember", "teaches": "BOSS: colors flash in the ball one at a time. Remember them, then hit them in that order.", "targets": 4, "speed": 105, "speedPerTarget": 1, "size": 52, "sizePerTarget": 0, "stage": { "colors": [1, 2] }, "bossEvery": 2, "bossLength": [3, 3] },
+        { "title": "Long Memory", "teaches": "Four colors to remember this time.", "targets": 6, "speed": 110, "speedPerTarget": 1, "size": 50, "sizePerTarget": 0, "stage": { "colors": [2, 2] }, "bossEvery": 2, "bossLength": [4, 4] },
+        { "title": "Boss Rush", "teaches": "A boss every other round, with NOT rounds in between.", "targets": 9, "speed": 120, "speedPerTarget": 1.5, "size": 48, "sizePerTarget": -0.2, "stage": { "colors": [3, 3], "inverted": 0.5 }, "bossEvery": 2, "bossLength": [3, 4] }
+      ]
+    },
+    {
+      "title": "Mastery",
+      "levels": [
+        { "title": "Chaos", "teaches": "Everything you have learned, mixed.", "targets": 18, "speed": 140, "speedPerTarget": 2.5, "size": 46, "sizePerTarget": -0.4, "stage": { "colors": [2, 4], "reverse": 0.5, "decoys": 1, "rotate": 0.4, "bonus": 0.2, "inverted": 0.2, "split": 0.2, "ghost": 0.2, "pulse": 0.2, "locks": [3, 4] }, "powerUpChance": 0.15 },
+        { "title": "Gauntlet", "teaches": "Faster, smaller, with a boss in the middle.", "targets": 22, "speed": 160, "speedPerTarget": 3, "size": 42, "sizePerTarget": -0.5, "stage": { "colors": [3, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.5, "inverted": 0.25, "split": 0.25, "ghost": 0.25, "pulse": 0.3, "locks": [3, 5] }, "bossEvery": 11, "bossLength": [4, 4] },
+        { "title": "Hue Master", "teaches": "The final test. Three stars here means you have mastered Hue Lock.", "targets": 26, "speed": 180, "speedPerTarget": 3, "size": 40, "sizePerTarget": -0.5, "stage": { "colors": [3, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.6, "inverted": 0.3, "split": 0.3, "ghost": 0.3, "pulse": 0.4, "bonus": 0.2, "locks": [4, 5] }, "bossEvery": 13, "bossLength": [4, 4] }
+      ]
+    }
+  ]
+}

@@ -6,9 +6,12 @@ import 'package:flutter/services.dart';
 
 import 'app.dart';
 import 'config/game_config.dart';
+import 'meta/levels.dart';
 import 'services/ads_service.dart';
 import 'services/analytics.dart';
 import 'services/feedback.dart';
+import 'services/game_services.dart';
+import 'services/notifications.dart';
 import 'services/profile_store.dart';
 import 'services/purchase_service.dart';
 
@@ -18,10 +21,11 @@ Future<void> main() async {
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
   final mobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
-  final (config, profile, analytics) = await (
+  final (config, profile, analytics, levels) = await (
     GameConfig.load(),
     ProfileStore.load(),
     LocalAnalytics.load(),
+    loadLevels(),
   ).wait;
 
   final services = AppServices(
@@ -33,6 +37,9 @@ Future<void> main() async {
     ads: mobile ? MobileAdsService() : NoAdsService(),
     purchases: mobile ? StorePurchaseService() : NoPurchaseService(),
     analytics: analytics,
+    gameServices: GameServices(),
+    reminders: ReminderService(),
+    levels: levels,
   );
   analytics.log('app_open');
 

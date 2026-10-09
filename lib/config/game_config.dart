@@ -418,12 +418,8 @@ class AdsConfig {
 
 class AnnounceConfig {
   AnnounceConfig._(Map<String, dynamic> m)
-    : firstTime = _ms(m, 'firstTimeMs'),
-      repeat = _ms(m, 'repeatMs'),
+    : repeat = _ms(m, 'repeatMs'),
       shield = _ms(m, 'shieldMs');
-
-  /// Pause the first time a player ever meets a mechanic.
-  final double firstTime;
 
   /// Pause before every later NOT / split round.
   final double repeat;

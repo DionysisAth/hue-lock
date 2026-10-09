@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hue_lock/app.dart';
+import 'package:hue_lock/meta/levels.dart';
 import 'package:hue_lock/services/ads_service.dart';
 import 'package:hue_lock/services/analytics.dart';
 import 'package:hue_lock/services/feedback.dart';
@@ -17,6 +20,8 @@ AppServices fakeServices({PlayerProfile? profile}) => AppServices(
   ads: NoAdsService(),
   purchases: NoPurchaseService(),
   analytics: NoAnalytics(),
+  levels: parseLevels(File('assets/config/levels.json').readAsStringSync()),
+  warmUpEffects: false,
 );
 
 void main() {
@@ -44,7 +49,7 @@ void main() {
     final s = fakeServices(profile: PlayerProfile()..coins = 1000);
     await tester.pumpWidget(HueLockApp(services: s));
     await tester.pump();
-    await tester.tap(find.text('SHOP'));
+    await tester.tap(find.byTooltip('Shop'));
     await _settle(tester);
 
     await tester.tap(find.text('Planet'));
@@ -61,7 +66,7 @@ void main() {
     final s = fakeServices();
     await tester.pumpWidget(HueLockApp(services: s));
     await tester.pump();
-    await tester.tap(find.text('SETTINGS'));
+    await tester.tap(find.byTooltip('Settings'));
     await _settle(tester);
     await tester.tap(find.text('Colorblind mode'));
     await tester.pump();

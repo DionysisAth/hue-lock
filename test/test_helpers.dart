@@ -42,7 +42,7 @@ void tapTargetCenter(GameEngine engine) {
   waitUntilPlaying(engine);
   final target = engine.round!.currentPrimary;
   advance(engine, timeUntil(engine, target.center) * 0.5);
-  // Re-aim after the frames went by (a Perfect's hit-stop shifts the round),
+  // Re-aim after the frames went by,
   // then tap timestamped exactly at the center crossing, between frames.
   engine.tap(engine.time + timeUntil(engine, target.center));
 }

@@ -88,7 +88,7 @@ void main() {
     );
   });
 
-  test('Perfects hit harder: hit-stop, effects, combo and streak events', () {
+  test('Perfects hit harder: effects, combo and streak events', () {
     final events = <GameEvent>[];
     final e = newEngine(events)..startRun(best: 0, seed: 12);
     // Tap right now, on a frame where the pointer is on the center.
@@ -101,11 +101,10 @@ void main() {
       e.effects.particles.where((p) => p.shape == ParticleShape.shard),
       isNotEmpty,
     );
-    // Hit-stop: the pointer holds still for a blink, then moves on.
+    // No hit-stop: the pointer keeps moving on the very next frame.
     final a = e.pointerAngle();
-    advance(e, 0.03);
-    expect(e.pointerAngle(), closeTo(a, 1e-9));
-    advance(e, 0.1);
+    advance(e, 1 / 60);
+    expect(e.phase, GamePhase.playing);
     expect(e.pointerAngle(), isNot(closeTo(a, 1e-6)));
     // Combo up at 3 Perfects, along with the first streak word.
     tapTargetCenter(e);
@@ -259,18 +258,15 @@ void main() {
   });
 
   group('announcements', () {
-    test('a first-ever run starts frozen behind an explanation', () {
+    test('a first-ever run starts playing under an explanation banner', () {
       final events = <GameEvent>[];
       final e = newEngine(events, fresh: true)..startRun(best: 0, seed: 9);
-      expect(e.phase, GamePhase.countdown);
-      expect(e.showCountdownNumber, isFalse);
+      expect(e.phase, GamePhase.playing, reason: 'no first-time freeze');
       expect(e.effects.banner?.title, intros['intro']!.$1);
       expect(events.whereType<IntroSeenEvent>().map((x) => x.name), ['intro']);
       final pointer = e.pointerAngle();
-      advance(e, config.announce.firstTime - 0.1);
-      expect(e.pointerAngle(), closeTo(pointer, 1e-9));
-      advance(e, 0.2);
-      expect(e.phase, GamePhase.playing);
+      advance(e, 0.1);
+      expect(e.pointerAngle(), isNot(closeTo(pointer, 1e-6)));
     });
 
     test('a returning player starts right away', () {
@@ -278,42 +274,52 @@ void main() {
       expect(e.phase, GamePhase.playing);
     });
 
-    test('NOT and split rounds always pause; new mechanics pause once', () {
-      final events = <GameEvent>[];
-      final e = newEngine(events, fresh: true)..startRun(best: 0, seed: 11);
-      final paused = <String, int>{};
-      final rounds = <String, int>{};
-      var guard = 0;
-      while (e.level < 80 && guard++ < 400) {
-        waitUntilPlaying(e);
-        tapTargetCenter(e);
-        final r = e.round;
-        if (r == null || e.phase == GamePhase.dying) break;
-        final kind = r.spec.kind;
-        if (r.step != 0 || kind == RoundKind.boss) continue;
-        final key = kind == RoundKind.inverted
-            ? 'not'
-            : kind == RoundKind.split
-            ? 'split'
-            : null;
-        if (key == null) continue;
-        rounds[key] = (rounds[key] ?? 0) + 1;
-        if (e.phase == GamePhase.countdown) {
-          paused[key] = (paused[key] ?? 0) + 1;
+    test(
+      'only NOT and split rounds pause; each mechanic is explained once',
+      () {
+        final events = <GameEvent>[];
+        final e = newEngine(events, fresh: true)..startRun(best: 0, seed: 11);
+        final paused = <String, int>{};
+        final rounds = <String, int>{};
+        var calmPauses = 0;
+        var guard = 0;
+        while (e.level < 80 && guard++ < 400) {
+          waitUntilPlaying(e);
+          tapTargetCenter(e);
+          final r = e.round;
+          if (r == null || e.phase == GamePhase.dying) break;
+          final kind = r.spec.kind;
+          if (r.step != 0 || kind == RoundKind.boss) continue;
+          final key = kind == RoundKind.inverted
+              ? 'not'
+              : kind == RoundKind.split
+              ? 'split'
+              : null;
+          if (key == null) {
+            if (e.phase == GamePhase.countdown) calmPauses++;
+            continue;
+          }
+          rounds[key] = (rounds[key] ?? 0) + 1;
+          if (e.phase == GamePhase.countdown) {
+            paused[key] = (paused[key] ?? 0) + 1;
+          }
         }
-      }
-      expect(events.whereType<MissEvent>(), isEmpty);
-      expect(rounds['not'], greaterThan(1));
-      expect(paused['not'], rounds['not']);
-      expect(rounds['split'], greaterThan(1));
-      expect(paused['split'], rounds['split']);
-      final introduced = events.whereType<IntroSeenEvent>().map((x) => x.name);
-      expect(
-        introduced.toSet(),
-        containsAll(['intro', 'not', 'reverse', 'boss', 'split']),
-      );
-      expect(introduced.length, introduced.toSet().length, reason: 'once');
-    });
+        expect(events.whereType<MissEvent>(), isEmpty);
+        expect(rounds['not'], greaterThan(1));
+        expect(paused['not'], rounds['not']);
+        expect(rounds['split'], greaterThan(1));
+        expect(paused['split'], rounds['split']);
+        expect(calmPauses, 0, reason: 'new mechanics never freeze the run');
+        final introduced = events.whereType<IntroSeenEvent>().map(
+          (x) => x.name,
+        );
+        expect(
+          introduced.toSet(),
+          containsAll(['intro', 'not', 'reverse', 'boss', 'split']),
+        );
+        expect(introduced.length, introduced.toSet().length, reason: 'once');
+      },
+    );
   });
 
   test('a boss round punishes the wrong order', () {

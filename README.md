@@ -5,7 +5,11 @@ around a ring; tap when it is over the zone that matches the ball's color.
 Hit and the next round gets a little harder; miss and the run is over.
 
 The full design spec is in [`docs/hue-lock-design.md`](docs/hue-lock-design.md).
-This repository implements its **MVP milestone** (design doc section 15).
+This repository implements its **MVP milestone** (design doc section 15) plus
+most of the retention and social milestones (section 16): Levels, Daily
+Challenge, Zen, friend duels, XP, missions, daily rewards and achievements.
+Nothing needs a server: leaderboards, achievements and cloud save use the free
+Google Play Games / Game Center services, and duels work with a share code.
 
 | Home & game over | Neon / Candy (colorblind mode) | Shop & settings |
 |---|---|---|
@@ -41,7 +45,8 @@ This repository implements its **MVP milestone** (design doc section 15).
   banner, and the music gets faster.
 - **Juice.** Every hit locks the zone and shatters it into shards. Perfects
   add more on top:
-  - a tiny hit-stop, a camera punch-in, shockwave rings and sparkles
+  - a camera punch-in, shockwave rings and sparkles (no hit-stop: the
+    pointer never pauses, so a Perfect never feels like a frame drop)
   - an edge glow and a richer chime that rises with the streak, plus a
     double-tick haptic
   - streak words ("NICE!", "INSANE!", "GODLIKE!") and a combo-up whoosh
@@ -56,12 +61,15 @@ This repository implements its **MVP milestone** (design doc section 15).
   round freezes behind a banner in these cases:
   - Before every NOT and split round (1 s).
   - After a shield save (1 s).
-  - The first time a player ever meets a mechanic (2.4 s, with a one-line
-    explanation). This includes the very first run. These intros are
-    remembered per player.
+  - Before a boss round, the colors are shown one by one (longer the first
+    time).
   - A split's second color is at least 650 ms behind the first, or it is due
     on the next pass.
   - Ghost zones always start visible.
+
+  A mechanic seen for the first time gets a 2.4 s banner with a one-line
+  explanation. The run never stops for it: Levels mode is where mechanics
+  are taught.
 
 Everything above is tunable in `assets/config/game_config.json`.
 
@@ -136,21 +144,66 @@ lib/
   core/       seeded RNG, angle math
   game/       pure game logic: rounds, generator, hit judge, engine, effects
   render/     painter, palette, ball skins, ring themes
-  services/   save, audio/haptics, ads, purchases, analytics
-  ui/         game screen (+ overlays), shop, settings
-assets/       config + sound effects
+  meta/       XP, missions, achievements, daily challenge, duel codes, levels
+  services/   save, audio/haptics, ads, purchases, analytics, Play Games /
+              Game Center, local reminders
+  ui/         game screen (+ HUD, home and game-over overlays), levels,
+              progress, how to play, shop, settings
+assets/       config (game_config.json, levels.json) + sound effects
 tool/         generate_sounds.py / generate_music.py (synthesized audio), ci/ scripts
-test/         generator fairness, hit judging, engine, widget tests
+test/         generator fairness, hit judging, engine, modes, levels,
+              progression, widget tests
 ```
+
+## Modes
+
+| Mode | What it is | Where |
+|---|---|---|
+| **Endless** | The high-score mode (tap on home). New mechanics show a short banner but never freeze the run. NOT and split rounds always get a 1 s warning. | `GameEngine` (`RunMode.endless`) |
+| **Levels** | 24 short levels in 8 chapters. Each chapter teaches one mechanic: basics, reverse/greedy/lock sets, NOT/decoys, spin/ghost, split, surge, boss memory, mastery. You get 1-3 stars for your Perfect ratio, and each level unlocks the next. | `assets/config/levels.json`, `lib/meta/levels.dart`, `lib/ui/levels_screen.dart` |
+| **Daily Challenge** | The same seeded run for everyone today, on the Pacific-time day that matches Play Games daily leaderboards. One free attempt, plus up to 2 more for a rewarded ad. No continues. | `dailyChallengeDay` / `dailySeed` in `lib/meta/progression.dart` |
+| **Zen** | No game over and no score. A miss just resets the streak. | `GameEngine._onMiss` |
+| **Duel** | "Challenge a friend" shares a score image and a code like `HL-4F7KQ2MXA9C`, which holds the run's seed and the score to beat (with a checksum). The friend pastes it in DUEL and plays the exact same run. | `DuelCode`, `lib/ui/mode_dialogs.dart` |
+
+## Progression
+
+- **XP and player levels.** Every run gives XP. Level-ups give coins, and
+  milestone levels unlock balls and rings (3, 5, 8, 10, 12, 15).
+- **Missions.** Three at a time, each with a coin and XP reward; a claimed
+  mission is replaced.
+- **Daily login reward.** A 7-day streak (days 4 and 7 add continue tokens).
+- **Achievements.** 18 of them, mirrored to Play Games / Game Center once
+  configured.
+- **Continue tokens.** Spend one instead of an ad or coins.
+- **Starter Pack.** A one-time IAP: remove ads, 1000 coins, 5 tokens and the
+  exclusive Crown ball.
+- **Daily reminder.** An opt-in local notification (Settings). It needs no
+  push server.
+- **Stats** and everything else are on the Progress screen (trophy icon on
+  home).
 
 ## Before release (not done yet)
 
 - **AdMob:** replace Google's *sample* app ids in `AndroidManifest.xml` and
   `Info.plist`, and the *test* ad units in `AdUnitIds`. Set up the UMP
   GDPR message and IDFA message in AdMob. Add mediation adapters.
-- **IAP:** create the `hue_lock_remove_ads` non-consumable in App Store
-  Connect and Play Console. Add **server-side receipt validation** (see the
-  TODO in `StorePurchaseService`).
+- **IAP:** create these products in App Store Connect and Play Console:
+  - `hue_lock_remove_ads`: non-consumable.
+  - `hue_lock_starter_pack`: non-consumable.
+  - `hue_lock_tokens_5`: consumable.
+
+  Add **server-side receipt validation** if you want it (see the TODO in
+  `StorePurchaseService`). The app works without it.
+- **Leaderboards, achievements, cloud save (free, optional).** They are off
+  until set up, and the app runs fine without them. To turn them on:
+  1. Play Console > Play Games Services: create the game, two leaderboards
+     (Endless best, Daily Challenge) and the achievements from
+     `achievementDefs`. Turn on Saved Games.
+  2. Put the project id in `android/app/src/main/res/values/games-ids.xml`.
+  3. App Store Connect: create the same leaderboards and achievements, and
+     enable the Game Center capability in Xcode.
+  4. Fill in `GameServiceIds` in `lib/services/game_services.dart` and set
+     `configured = true`.
 - **Android signing** config (release builds currently use the debug key) and
   final application id / bundle id (`com.huelock.hue_lock`).
 - App icons, splash screen, store listing, privacy policy, age rating.
@@ -162,9 +215,13 @@ test/         generator fairness, hit judging, engine, widget tests
 - Settle the open decisions in design doc section 19: name, currencies,
   interstitial frequency (currently 4), exact tuning numbers.
 
-## Later milestones (design doc section 16)
+## Not done (and why)
 
-Daily Challenge and leaderboards (the seeded generator is ready for it),
-missions, XP, daily rewards, clip sharing and friend challenges, gems, season
-pass, Zen mode, shifting zones, mid-round color changes, and per-stage ring
-shapes.
+- **Clip sharing (video).** Recording and encoding a replay needs native
+  video code on both platforms. Sharing a score image with a duel code covers
+  the "challenge a friend" loop without it.
+- **Gems and season pass.** A second currency is still an open decision in
+  design doc section 19, and a season pass needs ongoing content. The
+  progression above is the base either one would build on.
+- Shifting zones, mid-round color changes and per-stage ring shapes are
+  still ideas.

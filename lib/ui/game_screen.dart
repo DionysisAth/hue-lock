@@ -1,19 +1,31 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../app.dart';
+import '../game/effects.dart';
 import '../game/game_engine.dart';
 import '../game/hit_judge.dart';
+import '../meta/levels.dart';
+import '../meta/progression.dart';
 import '../render/ball_skins.dart';
 import '../render/game_painter.dart';
 import '../render/palette.dart';
 import '../render/ring_themes.dart';
 import '../services/feedback.dart';
+import 'game_over_overlay.dart';
+import 'home_overlay.dart';
+import 'how_to_play_screen.dart';
+import 'hud.dart';
+import 'levels_screen.dart';
+import 'mode_dialogs.dart';
+import 'progress_screen.dart';
 import 'settings_screen.dart';
 import 'shop_screen.dart';
-import 'widgets.dart';
 
 class _FrameNotifier extends ChangeNotifier {
   void ping() => notifyListeners();
@@ -35,9 +47,17 @@ class _GameScreenState extends State<GameScreen>
   late final Ticker _ticker;
   final _frame = _FrameNotifier();
   final _sinceFrame = Stopwatch();
+  final _shotKey = GlobalKey();
   Duration? _lastFrameStamp;
   bool _doubledThisRun = false;
   bool _adBusy = false;
+
+  /// Level being played (Levels mode).
+  LevelDef? _level;
+  int _starsGained = 0;
+
+  /// Short messages (mission done, achievement, level up) shown at the top.
+  final _toasts = <String>[];
 
   GameEngine get engine => _engine!;
 
@@ -54,8 +74,15 @@ class _GameScreenState extends State<GameScreen>
     if (_engine == null) {
       s = Services.of(context);
       _engine = GameEngine(s.config)..onEvent = _onEvent;
+      s.profile.update(ensureMissions);
       _ticker.start();
       _updateMusic();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _offerDailyReward();
+        if (s.warmUpEffects) {
+          Future<void>.delayed(const Duration(milliseconds: 600), _warmUp);
+        }
+      });
     }
   }
 
@@ -80,11 +107,74 @@ class _GameScreenState extends State<GameScreen>
     }
   }
 
+  /// Renders every effect once off-screen at startup, so their shaders are
+  /// compiled before the first Perfect (no stutter on older GPUs).
+  Future<void> _warmUp() async {
+    if (!mounted) return;
+    final e = GameEngine(s.config)..seen.addAll(intros.keys);
+    e.startRun(best: 0, seed: 1);
+    final fx = e.effects
+      ..perfectFlash = 1
+      ..edgeFlash = 1
+      ..zoom = 1
+      ..ringPulse = 0.5
+      ..shieldFlash = 1
+      ..ballMorph = 0.5
+      ..glow = 1
+      ..banner = Announcement('WARM UP', subtitle: 'warm up');
+    fx.shatter(0, 0.5, 0);
+    fx.sparkle(0);
+    fx.burst(0, 1);
+    fx.confetti(count: 6);
+    fx.waves.add(Shockwave(0, 0, 2));
+    fx.locks.add(LockFlash(0, 0.5, 3, perfect: true));
+    fx.texts.add(FloatingText('WARM', 1, huge: true));
+    e
+      ..fever = true
+      ..shield = true;
+    try {
+      for (final theme in ringThemes) {
+        final recorder = ui.PictureRecorder();
+        final canvas = Canvas(recorder)..scale(0.25);
+        GamePainter(
+          engine: e,
+          theme: theme,
+          skin: ballSkins.first,
+          palette: HuePalette.standard,
+          colorblind: true,
+          repaint: _frame,
+        ).paint(canvas, const Size(400, 860));
+        final picture = recorder.endRecording();
+        final image = await picture.toImage(100, 215);
+        image.dispose();
+        picture.dispose();
+      }
+    } catch (err) {
+      debugPrint('Effect warm-up failed: $err');
+    }
+    e.dispose();
+  }
+
+  void _offerDailyReward() {
+    final p = s.profile.profile;
+    if (!mounted || p.totalRuns == 0) return;
+    if (!canClaimDailyReward(p, DateTime.now())) return;
+    DailyReward? reward;
+    s.profile.update((p) => reward = claimDailyReward(p, DateTime.now()));
+    if (reward == null) return;
+    s.audio.play(Sfx.coin);
+    showDailyRewardDialog(
+      context,
+      theme: ringThemeById(p.theme),
+      reward: reward!,
+    );
+  }
+
   /// Music builds with the run: pad at the start, full mix in Fever.
   void _updateMusic() {
     final e = engine;
     final int intensity;
-    if (e.phase == GamePhase.home) {
+    if (e.phase == GamePhase.home || e.mode == RunMode.zen) {
       intensity = 1;
     } else if (e.fever) {
       intensity = 4;
@@ -142,21 +232,99 @@ class _GameScreenState extends State<GameScreen>
       case GamePhase.playing:
         engine.tap(_tapTime(e));
       case GamePhase.home:
-        _startRun();
+        _startEndless();
       case GamePhase.gameOver:
-        if (engine.canRestart) _startRun();
+        if (engine.canRestart && _canRetry) _restart();
       case GamePhase.dying:
       case GamePhase.countdown:
         break;
     }
   }
 
-  void _startRun() {
+  // ---------------------------------------------------------------------
+  // Starting runs
+  // ---------------------------------------------------------------------
+
+  void _prepare() {
     engine.seen
       ..clear()
       ..addAll(s.profile.profile.seenIntros);
+    _starsGained = 0;
+  }
+
+  void _startEndless() {
+    _prepare();
+    _level = null;
     engine.startRun(best: s.profile.profile.bestScore);
   }
+
+  void _startZen() {
+    _prepare();
+    _level = null;
+    engine.startRun(best: 0, mode: RunMode.zen);
+  }
+
+  String get _today => dailyChallengeDay(DateTime.now().toUtc());
+
+  int get _dailyLeft {
+    final p = s.profile.profile;
+    return p.dailyDay == _today ? dailyAttemptsLeft(p) : dailyFreeAttempts;
+  }
+
+  void _startDaily() {
+    s.profile.update((p) => rollDaily(p, _today));
+    if (dailyAttemptsLeft(s.profile.profile) <= 0) return;
+    s.profile.update((p) => p.dailyAttempts++);
+    _prepare();
+    _level = null;
+    engine.startRun(
+      best: s.profile.profile.dailyBest,
+      seed: dailySeed(_today),
+      mode: RunMode.daily,
+    );
+  }
+
+  void _startDuel(int seed, int target) {
+    _prepare();
+    _level = null;
+    engine.startRun(best: 0, seed: seed, mode: RunMode.duel, beatScore: target);
+  }
+
+  void _startLevel(LevelDef level) {
+    _prepare();
+    _level = level;
+    engine.startRun(
+      best: 0,
+      seed: level.seed,
+      mode: RunMode.level,
+      config: level.configFrom(s.config),
+      targetRounds: level.targets,
+      starThresholds: level.stars,
+    );
+  }
+
+  /// "Tap to retry" is allowed (Daily needs an attempt left).
+  bool get _canRetry => engine.mode != RunMode.daily || _dailyLeft > 0;
+
+  void _restart() {
+    switch (engine.mode) {
+      case RunMode.daily:
+        _startDaily();
+      case RunMode.level:
+        _startLevel(_level!);
+      case RunMode.endless:
+        _prepare();
+        engine.restart(best: s.profile.profile.bestScore);
+      case RunMode.zen:
+      case RunMode.duel:
+        _prepare();
+        engine.restart(best: 0);
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Events
+  // ---------------------------------------------------------------------
 
   void _onEvent(GameEvent e) {
     switch (e) {
@@ -166,7 +334,10 @@ class _GameScreenState extends State<GameScreen>
           p.totalRuns++;
           p.runsSinceInterstitial++;
         });
-        s.analytics.log('run_start', {'run': s.profile.profile.totalRuns});
+        s.analytics.log('run_start', {
+          'run': s.profile.profile.totalRuns,
+          'mode': engine.mode.name,
+        });
         _updateTempo();
         _updateMusic();
       case HitEvent(:final judgement, :final perfectStreak, :final coinBonus):
@@ -199,6 +370,9 @@ class _GameScreenState extends State<GameScreen>
       case ShieldSavedEvent():
         s.audio.play(Sfx.shield);
         s.haptics.fail();
+      case ZenMissEvent():
+        s.audio.play(Sfx.ui);
+        s.haptics.hit();
       case SetClearedEvent():
         s.audio.play(Sfx.coin);
       case BossEvent(:final cleared):
@@ -213,10 +387,16 @@ class _GameScreenState extends State<GameScreen>
         s.audio.play(Sfx.fail);
         s.haptics.fail();
         s.profile.update((p) {
-          p.bestScore = math.max(p.bestScore, summary.score);
+          if (summary.mode == RunMode.endless) {
+            p.bestScore = math.max(p.bestScore, summary.score);
+          }
+          if (summary.mode == RunMode.daily) {
+            p.dailyBest = math.max(p.dailyBest, summary.score);
+          }
           p.coins += summary.newCoins;
         });
         s.analytics.log('run_end', {
+          'mode': summary.mode.name,
           'score': summary.score,
           'level': summary.level,
           'stage': summary.stageName,
@@ -228,14 +408,87 @@ class _GameScreenState extends State<GameScreen>
           'stage_reached': summary.world + 1,
           'continues': summary.continuesUsed,
         });
+      case LevelCompleteEvent(:final summary):
+        s.music.cut();
+        s.audio.play(Sfx.newBest);
+        s.haptics.celebrate();
+        final level = _level;
+        if (level != null) {
+          final before = s.profile.profile.levelStars[level.id] ?? 0;
+          _starsGained = math.max(0, summary.stars - before);
+          s.profile.update((p) {
+            if (summary.stars > before) p.levelStars[level.id] = summary.stars;
+            p.coins +=
+                summary.newCoins + (before == 0 ? 30 : 0) + 10 * _starsGained;
+            p.stats[Stat.levelsDone] = p.levelStars.values
+                .where((v) => v > 0)
+                .length;
+          });
+        }
+        s.analytics.log('level_complete', {
+          'level': level?.number,
+          'stars': summary.stars,
+        });
+      case RunFinishedEvent(:final summary):
+        _onRunFinished(summary);
       case IntroSeenEvent(:final name):
         s.profile.update((p) => p.seenIntros.add(name));
       case GameOverShown():
-        break;
+        // Without a continue on offer the run is over now; apply its
+        // rewards right away so they show on this screen.
+        if (!engine.canContinue) engine.finishRun();
       case ContinuedEvent():
         _updateMusic();
     }
   }
+
+  void _onRunFinished(RunSummary summary) {
+    late RunRewards rewards;
+    s.profile.update((p) {
+      if (summary.mode == RunMode.duel &&
+          summary.score > (engine.beatScore ?? 0)) {
+        p.addStat(Stat.duelsWon, 1);
+      }
+      rewards = applyRun(p, summary, starsGained: _starsGained);
+    });
+    _starsGained = 0;
+    for (final l in rewards.levelsGained) {
+      _toast('LEVEL UP! Player level ${l.level}');
+    }
+    for (final m in rewards.missions) {
+      _toast('Mission done: ${m.title}');
+    }
+    for (final a in rewards.achievements) {
+      _toast('Achievement: ${a.title}');
+      s.gameServices.unlock(a.id);
+    }
+    if (rewards.levelsGained.isNotEmpty || rewards.achievements.isNotEmpty) {
+      s.audio.play(Sfx.streak);
+    }
+    switch (summary.mode) {
+      case RunMode.endless:
+        s.gameServices.submitEndless(summary.score);
+      case RunMode.daily:
+        s.gameServices.submitDaily(summary.score);
+      case RunMode.zen:
+      case RunMode.duel:
+      case RunMode.level:
+        break;
+    }
+    s.gameServices.saveProfile(s.profile.profile);
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    setState(() => _toasts.add(message));
+    Future<void>.delayed(Duration(milliseconds: 2600 * _toasts.length), () {
+      if (mounted && _toasts.isNotEmpty) setState(() => _toasts.removeAt(0));
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Actions
+  // ---------------------------------------------------------------------
 
   Future<void> _continueWithAd() async {
     if (_adBusy) return;
@@ -259,6 +512,15 @@ class _GameScreenState extends State<GameScreen>
     }
   }
 
+  void _continueWithToken() {
+    if (s.profile.profile.tokens <= 0) return;
+    if (engine.continueRun()) {
+      s.profile.update((p) => p.tokens--);
+      s.audio.play(Sfx.ui);
+      s.analytics.log('continue', {'via': 'token'});
+    }
+  }
+
   Future<void> _doubleCoins() async {
     if (_adBusy || _doubledThisRun) return;
     setState(() => _adBusy = true);
@@ -276,6 +538,23 @@ class _GameScreenState extends State<GameScreen>
     }
   }
 
+  Future<void> _extraDailyAttempt() async {
+    final p = s.profile.profile;
+    if (_adBusy || p.dailyExtraAttempts >= dailyMaxAdAttempts) return;
+    setState(() => _adBusy = true);
+    final earned = await s.ads.showRewarded();
+    if (!mounted) return;
+    setState(() => _adBusy = false);
+    if (earned) {
+      s.profile.update((p) {
+        rollDaily(p, _today);
+        p.dailyExtraAttempts++;
+      });
+      s.analytics.log('ad_rewarded', {'placement': 'daily_attempt'});
+      _startDaily();
+    }
+  }
+
   Future<void> _goHome() async {
     s.audio.play(Sfx.ui);
     final p = s.profile.profile;
@@ -290,45 +569,161 @@ class _GameScreenState extends State<GameScreen>
       }
     }
     engine.goHome();
+    _level = null;
     _updateMusic();
   }
 
-  Future<void> _open(Widget screen) async {
+  Future<T?> _open<T>(Widget screen) {
     s.audio.play(Sfx.ui);
-    await Navigator.of(context)
-        .push(MaterialPageRoute<void>(builder: (_) => screen));
+    return Navigator.of(context)
+        .push(MaterialPageRoute<T>(builder: (_) => screen));
   }
+
+  Future<void> _openLevels() async {
+    final level = await _open<LevelDef>(const LevelsScreen());
+    if (level != null && mounted) _startLevel(level);
+  }
+
+  Future<void> _openDaily() async {
+    s.audio.play(Sfx.ui);
+    s.profile.update((p) => rollDaily(p, _today));
+    final p = s.profile.profile;
+    final choice = await showDailyDialog(
+      context,
+      theme: ringThemeById(p.theme),
+      day: _today,
+      attemptsLeft: dailyAttemptsLeft(p),
+      best: p.dailyBest,
+      adReady:
+          s.ads.rewardedReady.value &&
+          p.dailyExtraAttempts < dailyMaxAdAttempts,
+      leaderboards: s.gameServices.signedIn,
+    );
+    if (!mounted) return;
+    switch (choice) {
+      case DailyChoice.play:
+        _startDaily();
+      case DailyChoice.watchAd:
+        await _extraDailyAttempt();
+      case DailyChoice.leaderboard:
+        await s.gameServices.showLeaderboards();
+      case null:
+        break;
+    }
+  }
+
+  Future<void> _openDuel() async {
+    s.audio.play(Sfx.ui);
+    final code = await showDuelDialog(
+      context,
+      theme: ringThemeById(s.profile.profile.theme),
+    );
+    if (code != null && mounted) _startDuel(code.$1, code.$2);
+  }
+
+  /// Shares a picture of this screen plus a duel code for the same run.
+  Future<void> _share() async {
+    final summary = engine.lastSummary;
+    if (summary == null) return;
+    final code = DuelCode.encode(engine.seed, summary.score);
+    final where = switch (summary.mode) {
+      RunMode.daily => ' in Daily Challenge #${dailyNumber(_today)}',
+      _ => '',
+    };
+    final text =
+        'I scored ${summary.score} in Hue Lock$where! '
+        'Think you can beat it? Open Hue Lock, tap DUEL and enter $code';
+    final files = <XFile>[];
+    try {
+      final boundary =
+          _shotKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      final image = await boundary?.toImage(pixelRatio: 2);
+      final bytes = await image?.toByteData(format: ui.ImageByteFormat.png);
+      if (bytes != null) {
+        files.add(
+          XFile.fromData(
+            bytes.buffer.asUint8List(),
+            mimeType: 'image/png',
+            name: 'hue-lock-score.png',
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Score image failed: $e');
+    }
+    s.analytics.log('share', {'mode': summary.mode.name});
+    await SharePlus.instance.share(
+      ShareParams(text: text, files: files.isEmpty ? null : files),
+    );
+  }
+
+  bool get _progressBadge {
+    final p = s.profile.profile;
+    return canClaimDailyReward(p, DateTime.now()) ||
+        missionsOf(p).any((m) => m.done && !m.claimed);
+  }
+
+  // ---------------------------------------------------------------------
+  // UI
+  // ---------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([s.profile, engine]),
+      listenable: Listenable.merge([s.profile, engine, s.gameServices]),
       builder: (context, _) {
         final p = s.profile.profile;
         final theme = ringThemeById(p.theme);
         final palette = HuePalette.of(colorblind: p.colorblind);
         return Scaffold(
           backgroundColor: theme.bgBottom,
-          body: Stack(
-            children: [
-              Positioned.fill(
-                child: Listener(
-                  behavior: HitTestBehavior.opaque,
-                  onPointerDown: _onPointerDown,
-                  child: CustomPaint(
-                    painter: GamePainter(
-                      engine: engine,
-                      theme: theme,
-                      skin: ballSkinById(p.ball),
-                      palette: palette,
-                      colorblind: p.colorblind,
-                      repaint: _frame,
+          body: RepaintBoundary(
+            key: _shotKey,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Listener(
+                    behavior: HitTestBehavior.opaque,
+                    onPointerDown: _onPointerDown,
+                    child: CustomPaint(
+                      painter: GamePainter(
+                        engine: engine,
+                        theme: theme,
+                        skin: ballSkinById(p.ball),
+                        palette: palette,
+                        colorblind: p.colorblind,
+                        repaint: _frame,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Positioned.fill(child: _overlay(theme)),
-            ],
+                Positioned.fill(child: _overlay(theme)),
+                if (engine.mode == RunMode.zen &&
+                    engine.phase != GamePhase.home)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: SafeArea(
+                      child: IconButton(
+                        tooltip: 'End Zen',
+                        onPressed: _goHome,
+                        icon: Icon(Icons.close_rounded, color: theme.text),
+                      ),
+                    ),
+                  ),
+                if (_toasts.isNotEmpty)
+                  Positioned(
+                    left: 24,
+                    right: 24,
+                    top: 0,
+                    child: SafeArea(
+                      child: IgnorePointer(
+                        child: _Toast(text: _toasts.first, theme: theme),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         );
       },
@@ -336,26 +731,36 @@ class _GameScreenState extends State<GameScreen>
   }
 
   Widget _overlay(RingTheme theme) {
+    final p = s.profile.profile;
     switch (engine.phase) {
       case GamePhase.home:
-        return _HomeOverlay(
+        return HomeOverlay(
           theme: theme,
-          best: s.profile.profile.bestScore,
-          coins: s.profile.profile.coins,
-          onShop: () => _open(const ShopScreen()),
-          onSettings: () => _open(const SettingsScreen()),
+          profile: p,
+          dailyAttemptsLeft: _dailyLeft,
+          progressBadge: _progressBadge,
+          showLeaderboards: s.gameServices.signedIn,
+          onLevels: _openLevels,
+          onDaily: _openDaily,
+          onZen: _startZen,
+          onDuel: _openDuel,
+          onShop: () => _open<void>(const ShopScreen()),
+          onProgress: () => _open<void>(const ProgressScreen()),
+          onSettings: () => _open<void>(const SettingsScreen()),
+          onHelp: () => _open<void>(const HowToPlayScreen()),
+          onLeaderboards: s.gameServices.showLeaderboards,
         );
       case GamePhase.playing:
       case GamePhase.dying:
-        return _Hud(engine: engine, theme: theme);
+        return Hud(engine: engine, theme: theme, level: _level);
       case GamePhase.countdown:
         return Stack(
           children: [
             Positioned.fill(
-              child: _Hud(engine: engine, theme: theme),
+              child: Hud(engine: engine, theme: theme, level: _level),
             ),
-            // Holds behind a banner (boss preview, new mechanic) show no
-            // number; only continue / resume count down.
+            // Holds behind a banner (boss preview, NOT / split warning) show
+            // no number; only continue / resume count down.
             if (engine.showCountdownNumber)
               IgnorePointer(
                 child: Center(
@@ -375,665 +780,91 @@ class _GameScreenState extends State<GameScreen>
           ],
         );
       case GamePhase.gameOver:
+        final mode = engine.mode;
+        final level = _level;
+        final levels = s.levels;
+        final hasNext =
+            level != null &&
+            level.index + 1 < levels.length &&
+            levelUnlocked(levels, p.levelStars, level.index + 1);
         return ValueListenableBuilder<bool>(
           valueListenable: s.ads.rewardedReady,
-          builder: (context, adReady, _) => _GameOverOverlay(
+          builder: (context, adReady, _) => GameOverOverlay(
             engine: engine,
             theme: theme,
-            best: s.profile.profile.bestScore,
-            coins: s.profile.profile.coins,
+            best: mode == RunMode.daily ? p.dailyBest : p.bestScore,
+            coins: p.coins,
+            tokens: p.tokens,
             continueCost: s.config.continues.coinCost,
             adReady: adReady && !_adBusy,
             doubled: _doubledThisRun,
+            canRetry: _canRetry,
+            level: level,
+            dailyAttemptsLeft: _dailyLeft,
             onContinueAd: _continueWithAd,
             onContinueCoins: _continueWithCoins,
+            onContinueToken: _continueWithToken,
             onDouble: _doubleCoins,
             onHome: _goHome,
+            onShare: mode == RunMode.endless || mode == RunMode.daily
+                ? _share
+                : null,
+            onNextLevel: hasNext && engine.lastSummary?.completed == true
+                ? () => _startLevel(levels[level.index + 1])
+                : null,
+            onLevels: mode == RunMode.level ? _openLevels : null,
+            onLeaderboard:
+                s.gameServices.signedIn &&
+                    (mode == RunMode.endless || mode == RunMode.daily)
+                ? s.gameServices.showLeaderboards
+                : null,
+            onExtraAttempt:
+                mode == RunMode.daily &&
+                    p.dailyExtraAttempts < dailyMaxAdAttempts
+                ? _extraDailyAttempt
+                : null,
           ),
         );
     }
   }
 }
 
-TextStyle _label(RingTheme theme, {double size = 14}) => TextStyle(
-  color: theme.subtleText,
-  fontSize: size,
-  fontWeight: FontWeight.w700,
-  letterSpacing: 2,
-);
+class _Toast extends StatelessWidget {
+  const _Toast({required this.text, required this.theme});
 
-class _Hud extends StatelessWidget {
-  const _Hud({required this.engine, required this.theme});
-
-  final GameEngine engine;
+  final String text;
   final RingTheme theme;
-
-  Widget _chip(String label, {IconData? icon, Color? color}) {
-    final c = color ?? theme.text;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: c.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 15, color: c),
-            const SizedBox(width: 4),
-          ],
-          Text(
-            label,
-            style: TextStyle(
-              color: c,
-              fontWeight: FontWeight.w900,
-              fontSize: 13,
-              letterSpacing: 1.2,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
-    final e = engine;
-    final chips = <Widget>[
-      if (e.fever)
-        _chip(
-          'FEVER x${e.config.fever.pointsMultiplier}',
-          icon: Icons.local_fire_department_rounded,
-          color: const Color(0xFFFF7A2F),
+    return TweenAnimationBuilder<double>(
+      key: ValueKey(text),
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutBack,
+      builder: (context, v, child) => Transform.translate(
+        offset: Offset(0, -30 * (1 - v)),
+        child: Opacity(opacity: v.clamp(0.0, 1.0), child: child),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: theme.bgTop.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: HuePalette.standard[2], width: 1.5),
+          boxShadow: const [BoxShadow(blurRadius: 12, color: Colors.black38)],
         ),
-      if (e.multiplier > 1) _chip('COMBO x${e.multiplier}'),
-      if (e.shield)
-        _chip(
-          'SHIELD',
-          icon: Icons.shield_rounded,
-          color: HuePalette.standard[1],
-        ),
-      if (e.slowRounds > 0)
-        _chip(
-          'SLOW ${e.slowRounds}',
-          icon: Icons.hourglass_bottom_rounded,
-          color: HuePalette.standard[3],
-        ),
-      if (e.wideRounds > 0)
-        _chip(
-          'WIDE ${e.wideRounds}',
-          icon: Icons.open_in_full_rounded,
-          color: HuePalette.standard[2],
-        ),
-    ];
-    return IgnorePointer(
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 18),
-          child: Column(
-            children: [
-              Text(
-                'STAGE ${e.world + 1} · ${worldName(e.world)}',
-                style: _label(theme, size: 12),
-              ),
-              const SizedBox(height: 4),
-              _AnimatedScore(score: e.score, theme: theme),
-              const SizedBox(height: 6),
-              Text(
-                e.newBestReached
-                    ? 'NEW BEST'
-                    : 'BEST ${math.max(e.bestAtRunStart, e.score)}',
-                style: _label(theme),
-              ),
-              const SizedBox(height: 8),
-              _FeverMeter(
-                streak: e.perfectStreak,
-                goal: e.config.fever.perfectStreak,
-                fever: e.fever,
-                theme: theme,
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                alignment: WrapAlignment.center,
-                children: chips,
-              ),
-            ],
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: theme.text,
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Score that counts up to its new value with a little pop and a "+N".
-class _AnimatedScore extends StatefulWidget {
-  const _AnimatedScore({required this.score, required this.theme});
-
-  final int score;
-  final RingTheme theme;
-
-  @override
-  State<_AnimatedScore> createState() => _AnimatedScoreState();
-}
-
-class _AnimatedScoreState extends State<_AnimatedScore>
-    with SingleTickerProviderStateMixin {
-  late final _anim = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 420),
-  );
-  int _from = 0;
-  int _gain = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _from = widget.score;
-  }
-
-  @override
-  void didUpdateWidget(_AnimatedScore old) {
-    super.didUpdateWidget(old);
-    if (widget.score != old.score) {
-      _from = widget.score < old.score ? widget.score : _shown;
-      _gain = widget.score - old.score;
-      _anim.forward(from: 0);
-    }
-  }
-
-  int get _shown {
-    final k = Curves.easeOut.transform(_anim.value);
-    return (_from + (widget.score - _from) * k).round();
-  }
-
-  @override
-  void dispose() {
-    _anim.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (context, _) {
-        final v = _anim.value;
-        // Quick swell and settle.
-        final scale = 1 + 0.22 * math.sin(math.min(1, v * 2.2) * math.pi);
-        final showGain = _gain > 0 && _anim.isAnimating;
-        return SizedBox(
-          height: 66,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: [
-              Transform.scale(
-                scale: scale,
-                child: Text(
-                  '${_anim.isAnimating ? _shown : widget.score}',
-                  style: TextStyle(
-                    color: theme.text,
-                    fontSize: 64,
-                    height: 1,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              if (showGain)
-                Positioned(
-                  right: -8,
-                  top: -6 - 18 * v,
-                  child: FractionalTranslation(
-                    translation: const Offset(1, 0),
-                    child: Opacity(
-                      opacity: (1 - v).clamp(0.0, 1.0),
-                      child: Text(
-                        '+$_gain',
-                        style: TextStyle(
-                          color: HuePalette.standard[2],
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Perfect streak progress toward Fever: one segment per Perfect.
-class _FeverMeter extends StatelessWidget {
-  const _FeverMeter({
-    required this.streak,
-    required this.goal,
-    required this.fever,
-    required this.theme,
-  });
-
-  final int streak;
-  final int goal;
-  final bool fever;
-  final RingTheme theme;
-
-  static const _hot = Color(0xFFFF7A2F);
-
-  @override
-  Widget build(BuildContext context) {
-    final filled = fever ? goal : math.min(streak, goal);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < goal; i++)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutBack,
-            margin: const EdgeInsets.symmetric(horizontal: 2.5),
-            width: i < filled ? 22 : 16,
-            height: 6,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(3),
-              color: i < filled
-                  ? Color.lerp(
-                      HuePalette.standard[2],
-                      _hot,
-                      goal <= 1 ? 1 : i / (goal - 1),
-                    )
-                  : theme.text.withValues(alpha: 0.14),
-              boxShadow: i < filled && theme.dark
-                  ? [
-                      BoxShadow(
-                        color: _hot.withValues(alpha: fever ? 0.8 : 0.4),
-                        blurRadius: fever ? 10 : 5,
-                      ),
-                    ]
-                  : null,
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _HomeOverlay extends StatefulWidget {
-  const _HomeOverlay({
-    required this.theme,
-    required this.best,
-    required this.coins,
-    required this.onShop,
-    required this.onSettings,
-  });
-
-  final RingTheme theme;
-  final int best;
-  final int coins;
-  final VoidCallback onShop;
-  final VoidCallback onSettings;
-
-  @override
-  State<_HomeOverlay> createState() => _HomeOverlayState();
-}
-
-class _HomeOverlayState extends State<_HomeOverlay>
-    with SingleTickerProviderStateMixin {
-  late final _pulse = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    return LayoutBuilder(
-      builder: (context, box) {
-        final layout = RingLayout(box.biggest);
-        final ringBottom = layout.center.dy + layout.radius * 1.3;
-        return Stack(
-          children: [
-            IgnorePointer(
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 20),
-                        child: CoinCount(
-                          coins: widget.coins,
-                          color: theme.text,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: box.maxHeight * 0.04),
-                    _Title(theme: theme),
-                    const SizedBox(height: 10),
-                    Text('BEST ${widget.best}', style: _label(theme, size: 16)),
-                  ],
-                ),
-              ),
-            ),
-            Positioned(
-              top: ringBottom,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: FadeTransition(
-                  opacity: Tween(begin: 0.35, end: 1.0).animate(_pulse),
-                  child: Text(
-                    'TAP TO PLAY',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 4,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      PillButton(
-                        label: 'SHOP',
-                        icon: Icons.palette_rounded,
-                        theme: theme,
-                        onPressed: widget.onShop,
-                      ),
-                      const SizedBox(width: 16),
-                      PillButton(
-                        label: 'SETTINGS',
-                        icon: Icons.tune_rounded,
-                        theme: theme,
-                        filled: false,
-                        onPressed: widget.onSettings,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _Title extends StatelessWidget {
-  const _Title({required this.theme});
-
-  final RingTheme theme;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = HuePalette.standard.colors;
-    return ShaderMask(
-      shaderCallback: (rect) =>
-          LinearGradient(colors: colors).createShader(rect),
-      child: const Text(
-        'HUE LOCK',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 52,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 6,
-          height: 1,
-        ),
-      ),
-    );
-  }
-}
-
-class _GameOverOverlay extends StatelessWidget {
-  const _GameOverOverlay({
-    required this.engine,
-    required this.theme,
-    required this.best,
-    required this.coins,
-    required this.continueCost,
-    required this.adReady,
-    required this.doubled,
-    required this.onContinueAd,
-    required this.onContinueCoins,
-    required this.onDouble,
-    required this.onHome,
-  });
-
-  final GameEngine engine;
-  final RingTheme theme;
-  final int best;
-  final int coins;
-  final int continueCost;
-  final bool adReady;
-  final bool doubled;
-  final VoidCallback onContinueAd;
-  final VoidCallback onContinueCoins;
-  final VoidCallback onDouble;
-  final VoidCallback onHome;
-
-  @override
-  Widget build(BuildContext context) {
-    final summary = engine.lastSummary;
-    final miss = engine.lastMiss;
-    final isNewBest =
-        summary != null &&
-        summary.score > engine.bestAtRunStart &&
-        summary.score > 0;
-    final canContinue = engine.canContinue;
-
-    return LayoutBuilder(
-      builder: (context, box) {
-        final layout = RingLayout(box.biggest);
-        final ringTop = layout.center.dy - layout.radius * 1.32;
-        final ringBottom = layout.center.dy + layout.radius * 1.32;
-        return Stack(
-          children: [
-            // Score block above the ring.
-            Positioned(
-              left: 0,
-              right: 0,
-              top: 0,
-              height: ringTop,
-              child: IgnorePointer(
-                child: SafeArea(
-                  bottom: false,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '${summary?.score ?? engine.score}',
-                          style: TextStyle(
-                            color: theme.text,
-                            fontSize: 64,
-                            height: 1,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          isNewBest ? 'NEW BEST!' : 'BEST $best',
-                          style: isNewBest
-                              ? TextStyle(
-                                  color: HuePalette.standard[2],
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 2,
-                                )
-                              : _label(theme),
-                        ),
-                        if (miss != null && miss.nearMiss) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'SO CLOSE!',
-                            style: TextStyle(
-                              color: HuePalette.standard[0],
-                              fontSize: 26,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                          Text(
-                            '${(miss.missBySeconds * 1000).round()} ms '
-                            '${miss.early ? 'early' : 'late'}',
-                            style: _label(theme, size: 13),
-                          ),
-                        ] else if (miss != null && miss.timeout) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'TOO SLOW',
-                            style: TextStyle(
-                              color: HuePalette.standard[2],
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                          Text(
-                            'the fuse ran out',
-                            style: _label(theme, size: 13),
-                          ),
-                        ] else if (miss?.wrongZone != null) ...[
-                          const SizedBox(height: 8),
-                          Text('WRONG COLOR', style: _label(theme, size: 15)),
-                        ],
-                        if (summary != null) ...[
-                          const SizedBox(height: 6),
-                          Text(
-                            'STAGE ${summary.world + 1} · ${worldName(summary.world)}',
-                            style: _label(theme, size: 12),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            // Actions below the ring.
-            Positioned(
-              left: 16,
-              right: 16,
-              top: ringBottom,
-              bottom: 0,
-              child: SafeArea(
-                top: false,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.topCenter,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (summary != null)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IgnorePointer(
-                              child: CoinCount(
-                                coins: summary.coinsEarned * (doubled ? 2 : 1),
-                                color: theme.text,
-                                prefix: '+',
-                              ),
-                            ),
-                            if (!doubled && summary.coinsEarned > 0) ...[
-                              const SizedBox(width: 12),
-                              PillButton(
-                                label: 'x2',
-                                icon: Icons.play_circle_fill_rounded,
-                                theme: theme,
-                                color: coinColor,
-                                onPressed: adReady ? onDouble : null,
-                              ),
-                            ],
-                          ],
-                        ),
-                      if (canContinue) ...[
-                        const SizedBox(height: 14),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            PillButton(
-                              label: 'CONTINUE',
-                              icon: Icons.play_circle_fill_rounded,
-                              theme: theme,
-                              color: HuePalette.standard[3],
-                              onPressed: adReady ? onContinueAd : null,
-                            ),
-                            const SizedBox(width: 10),
-                            PillButton(
-                              label: '$continueCost',
-                              icon: Icons.monetization_on_rounded,
-                              theme: theme,
-                              filled: false,
-                              onPressed: coins >= continueCost
-                                  ? onContinueCoins
-                                  : null,
-                            ),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 18),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            tooltip: 'Home',
-                            onPressed: onHome,
-                            icon: Icon(
-                              Icons.home_rounded,
-                              color: theme.text,
-                              size: 30,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          IgnorePointer(
-                            child: Text(
-                              'TAP TO RETRY',
-                              style: TextStyle(
-                                color: theme.text,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 3,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 46),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 }

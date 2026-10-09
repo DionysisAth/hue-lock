@@ -65,8 +65,22 @@ String? streakWord(int streak) {
 /// Mechanics that change the rules: they also get a short pause every time.
 const _alwaysPause = {'not', 'split'};
 
-/// Optional extras: explained once, but never pause the game.
-const _noPause = {'greedy', 'powerup'};
+enum RunMode {
+  /// The high-score mode.
+  endless,
+
+  /// Same seeded run for everyone today; no continues.
+  daily,
+
+  /// No game over, no score: practice and relax.
+  zen,
+
+  /// A friend's run (same seed), trying to beat their score; no continues.
+  duel,
+
+  /// A hand-made level with a target count; teaches the mechanics.
+  level,
+}
 
 sealed class GameEvent {
   const GameEvent();
@@ -166,6 +180,24 @@ class ContinuedEvent extends GameEvent {
   const ContinuedEvent();
 }
 
+/// A run is over for good (restart, home, or level complete). Meta progress
+/// (XP, missions, achievements, leaderboards) is applied from this.
+class RunFinishedEvent extends GameEvent {
+  const RunFinishedEvent(this.summary);
+  final RunSummary summary;
+}
+
+/// The level's target count was reached.
+class LevelCompleteEvent extends GameEvent {
+  const LevelCompleteEvent(this.summary);
+  final RunSummary summary;
+}
+
+/// Zen: a miss just costs the streak.
+class ZenMissEvent extends GameEvent {
+  const ZenMissEvent();
+}
+
 /// Snapshot of a run at the moment of death.
 class RunSummary {
   const RunSummary({
@@ -180,7 +212,34 @@ class RunSummary {
     required this.world,
     required this.continuesUsed,
     required this.seed,
+    this.mode = RunMode.endless,
+    this.hits = 0,
+    this.bossesCleared = 0,
+    this.fevers = 0,
+    this.powerUps = 0,
+    this.notCleared = 0,
+    this.splitCleared = 0,
+    this.greedyHits = 0,
+    this.completed = false,
+    this.stars = 0,
   });
+
+  final RunMode mode;
+
+  /// Successful taps (steps of split / boss rounds count separately).
+  final int hits;
+  final int bossesCleared;
+  final int fevers;
+  final int powerUps;
+  final int notCleared;
+  final int splitCleared;
+  final int greedyHits;
+
+  /// Level mode: the target count was reached, with 1-3 [stars].
+  final bool completed;
+  final int stars;
+
+  double get perfectRatio => hits == 0 ? 0 : perfects / hits;
 
   final int score;
   final int level;
@@ -203,10 +262,14 @@ class RunSummary {
 /// [tick] is called, and taps carry their own game-time timestamp, so the
 /// result never depends on frame rate.
 class GameEngine extends ChangeNotifier {
-  GameEngine(this.config, {int Function()? seedSource})
-    : _seedSource = seedSource ?? (() => DateTime.now().microsecondsSinceEpoch);
+  GameEngine(GameConfig config, {int Function()? seedSource})
+    : baseConfig = config,
+      config = config,
+      _seedSource = seedSource ?? (() => DateTime.now().microsecondsSinceEpoch);
 
-  final GameConfig config;
+  /// The game's tuning; a level run uses its own override of it.
+  final GameConfig baseConfig;
+  GameConfig config;
   final int Function() _seedSource;
   final effects = Effects();
 
@@ -249,6 +312,82 @@ class GameEngine extends ChangeNotifier {
   /// Current stage of the run (changes every `worlds.every` levels).
   int world = 0;
 
+  RunMode mode = RunMode.endless;
+
+  /// Level mode: rounds to clear; [beatScore]: duel target.
+  int? targetRounds;
+  int? beatScore;
+
+  // Per-run stats for missions and achievements.
+  int hits = 0;
+  int bossesCleared = 0;
+  int fevers = 0;
+  int powerUpsCollected = 0;
+  int notCleared = 0;
+  int splitCleared = 0;
+  int greedyHits = 0;
+  bool _runOpen = false;
+  bool completed = false;
+  int? _seedArg;
+  List<double> _starThresholds = const [0.5, 0.8];
+
+  /// Restarts the current mode: the same seed for daily / duel / level
+  /// runs, a fresh one otherwise.
+  void restart({required int best}) => startRun(
+    best: best,
+    seed: _seedArg,
+    mode: mode,
+    config: config,
+    targetRounds: targetRounds,
+    beatScore: beatScore,
+    starThresholds: _starThresholds,
+  );
+
+  /// Ends the current run for good (once) and reports it.
+  void finishRun() {
+    if (!_runOpen) return;
+    _runOpen = false;
+    final summary = lastSummary ?? _summary(time, round);
+    _emit(RunFinishedEvent(summary));
+  }
+
+  int _stars() {
+    if (!completed) return 0;
+    final ratio = hits == 0 ? 0 : perfects / hits;
+    var stars = 1;
+    for (final t in _starThresholds) {
+      if (ratio >= t) stars++;
+    }
+    return stars;
+  }
+
+  RunSummary _summary(double t, ActiveRound? r) {
+    final earned = mode == RunMode.zen ? 0 : coinsEarned;
+    return RunSummary(
+      score: score,
+      level: level,
+      perfects: perfects,
+      bestPerfectStreak: bestPerfectStreak,
+      coinsEarned: earned,
+      newCoins: earned - coinsBanked,
+      duration: t - runStart,
+      stageName: r?.spec.stageName ?? '',
+      world: world,
+      continuesUsed: continuesUsed,
+      seed: seed,
+      mode: mode,
+      hits: hits,
+      bossesCleared: bossesCleared,
+      fevers: fevers,
+      powerUps: powerUpsCollected,
+      notCleared: notCleared,
+      splitCleared: splitCleared,
+      greedyHits: greedyHits,
+      completed: completed,
+      stars: _stars(),
+    );
+  }
+
   Judgement? lastMiss;
   RunSummary? lastSummary;
   double _phaseStart = 0;
@@ -258,11 +397,6 @@ class GameEngine extends ChangeNotifier {
   bool _countdownNumber = false;
   bool _bossGoShown = false;
   double _bossIntro = 0;
-
-  /// A tiny freeze after a Perfect, for impact. Only ever makes the next
-  /// target easier to reach (it is always well ahead of the pointer).
-  double _hitStop = 0;
-  static const _hitStopPerfect = 0.055;
 
   /// Mechanics this player has already had explained (persisted by the UI).
   final seen = <String>{};
@@ -304,7 +438,9 @@ class GameEngine extends ChangeNotifier {
   }
 
   bool get canContinue =>
-      phase == GamePhase.gameOver && continuesUsed < config.continues.maxPerRun;
+      phase == GamePhase.gameOver &&
+      mode == RunMode.endless &&
+      continuesUsed < config.continues.maxPerRun;
 
   bool get canRestart =>
       phase == GamePhase.gameOver &&
@@ -331,9 +467,33 @@ class GameEngine extends ChangeNotifier {
   void _emit(GameEvent e) => onEvent?.call(e);
 
   /// Starts a new run immediately (no scene reload, just state reset).
-  void startRun({required int best, int? seed}) {
+  void startRun({
+    required int best,
+    int? seed,
+    RunMode mode = RunMode.endless,
+    GameConfig? config,
+    int? targetRounds,
+    int? beatScore,
+    List<double> starThresholds = const [0.5, 0.8],
+  }) {
+    finishRun();
+    _seedArg = seed;
+    _starThresholds = starThresholds;
+    this.mode = mode;
+    this.config = config ?? baseConfig;
+    this.targetRounds = targetRounds;
+    this.beatScore = beatScore;
+    hits = 0;
+    bossesCleared = 0;
+    fevers = 0;
+    powerUpsCollected = 0;
+    notCleared = 0;
+    splitCleared = 0;
+    greedyHits = 0;
+    completed = false;
+    _runOpen = true;
     this.seed = seed ?? (_seedSource() & 0x7FFFFFFF);
-    _generator = RoundGenerator(config, this.seed);
+    _generator = RoundGenerator(this.config, this.seed);
     score = 0;
     level = 0;
     perfectStreak = 0;
@@ -355,7 +515,6 @@ class GameEngine extends ChangeNotifier {
     lastSummary = null;
     effects.clear();
     effects.glowTarget = 0;
-    _hitStop = 0;
     _newSet();
 
     final pointer = round?.pointerAngleAt(time) ?? _idleAngle;
@@ -366,6 +525,9 @@ class GameEngine extends ChangeNotifier {
   }
 
   void goHome() {
+    finishRun();
+    config = baseConfig;
+    mode = RunMode.endless;
     if (round != null) _idleAngle = round!.pointerAngleAt(time);
     round = null;
     fever = false;
@@ -400,11 +562,6 @@ class GameEngine extends ChangeNotifier {
         }
       case GamePhase.playing:
         final r = round;
-        if (_hitStop > 0 && r != null) {
-          final freeze = math.min(dt, _hitStop);
-          r.startTime += freeze;
-          _hitStop -= freeze;
-        }
         if (r != null && r.travelAt(time) > r.stepDeadline) {
           // The fuse burnt out: the pointer passed the target untouched.
           _onMiss(r, Judgement.timeout(r.localPointerAt(time)), time);
@@ -426,7 +583,7 @@ class GameEngine extends ChangeNotifier {
       case GamePhase.playing:
         return _judge(tapTime);
       case GamePhase.gameOver:
-        if (canRestart) startRun(best: math.max(bestAtRunStart, score));
+        if (canRestart) restart(best: math.max(bestAtRunStart, score));
         return null;
       case GamePhase.home:
       case GamePhase.dying:
@@ -481,6 +638,8 @@ class GameEngine extends ChangeNotifier {
     var points = base * multiplier;
     if (feverBefore) points *= config.fever.pointsMultiplier;
     score += points;
+    hits++;
+    if (zone.isBonus) greedyHits++;
 
     final coinBonus = zone.hasCoin ? config.coins.coinZoneBonus : 0;
     zoneCoins += coinBonus;
@@ -506,7 +665,6 @@ class GameEngine extends ChangeNotifier {
       power: perfect ? 1.4 : 0.8,
     );
     if (perfect) {
-      _hitStop = _hitStopPerfect;
       effects.perfectFlash = 1;
       effects.zoom = 1;
       effects.edgeFlash = 1;
@@ -550,6 +708,7 @@ class GameEngine extends ChangeNotifier {
 
     if (perfect && !fever && perfectStreak >= config.fever.perfectStreak) {
       fever = true;
+      fevers++;
       effects.waves.add(
         Shockwave(0, 0, zone.color, maxRadius: 2.6, life: 0.8, width: 0.08),
       );
@@ -596,6 +755,16 @@ class GameEngine extends ChangeNotifier {
 
     // Round complete.
     level++;
+    switch (r.spec.kind) {
+      case RoundKind.inverted:
+        notCleared++;
+      case RoundKind.split:
+        splitCleared++;
+      case RoundKind.boss:
+        bossesCleared++;
+      case RoundKind.normal:
+        break;
+    }
     if (slowRounds > 0) slowRounds--;
     if (wideRounds > 0) wideRounds--;
     if (boss) {
@@ -633,6 +802,11 @@ class GameEngine extends ChangeNotifier {
       perfectStreak * 0.12 + math.min(level, 120) / 240 + (fever ? 0.4 : 0),
     );
 
+    if (targetRounds != null && level >= targetRounds!) {
+      _completeLevel(r, t);
+      return;
+    }
+
     // The ball morphs into the next color with a splash.
     effects.ballFrom = r.spec.ballColors.last;
     effects.ballMorph = 1;
@@ -661,7 +835,24 @@ class GameEngine extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _completeLevel(ActiveRound r, double t) {
+    r.frozenAt = t;
+    completed = true;
+    _endFever();
+    final summary = _summary(t, r);
+    coinsBanked = summary.coinsEarned;
+    lastSummary = summary;
+    effects.confetti();
+    effects.waves.add(
+      Shockwave(0, 0, r.spec.ballColors.last, maxRadius: 2.4, life: 0.8),
+    );
+    _setPhase(GamePhase.gameOver);
+    _emit(LevelCompleteEvent(summary));
+    finishRun();
+  }
+
   void _collect(PowerUp p) {
+    powerUpsCollected++;
     final c = config.powerUps;
     switch (p) {
       case PowerUp.shield:
@@ -779,12 +970,13 @@ class GameEngine extends ChangeNotifier {
     var bannerIsNew = false;
     for (final name in found) {
       final isNew = !seen.contains(name);
+      // New mechanics get an explanation banner but never freeze the run
+      // (Levels mode is where they are taught). Rule changes (NOT / split)
+      // always get a short warning pause.
+      if (_alwaysPause.contains(name)) hold = math.max(hold, a.repeat);
       if (isNew) {
         _markSeen(name);
-        if (!_noPause.contains(name)) hold = math.max(hold, a.firstTime);
-      } else if (_alwaysPause.contains(name)) {
-        hold = math.max(hold, a.repeat);
-      } else {
+      } else if (!_alwaysPause.contains(name)) {
         continue;
       }
       if (banner == null) {
@@ -799,7 +991,7 @@ class GameEngine extends ChangeNotifier {
       title,
       subtitle: subtitle,
       color: color,
-      life: math.max(hold, bannerIsNew ? 2.0 : 1.0) + 0.4,
+      life: math.max(hold, bannerIsNew ? 2.4 : 1.0) + 0.4,
     );
     if (hold > 0) _hold(hold);
   }
@@ -834,6 +1026,26 @@ class GameEngine extends ChangeNotifier {
   }
 
   void _onMiss(ActiveRound r, Judgement j, double t) {
+    if (mode == RunMode.zen) {
+      // Zen: no game over. The streak resets and a fresh round starts.
+      perfectStreak = 0;
+      multiplier = 1;
+      _endFever();
+      effects.shake = 0.4;
+      effects.texts.add(FloatingText(j.timeout ? 'MISSED IT' : 'MISS', -1));
+      _emit(const ZenMissEvent());
+      _startRound(
+        pointer: r.pointerAngleAt(t),
+        ring: r.ringAngleAt(t),
+        dir: r.spec.pointerDir,
+        t: t,
+        previousColor: r.spec.targetColor,
+        isFirst: true,
+      );
+      if (phase != GamePhase.countdown) _hold(0.6);
+      notifyListeners();
+      return;
+    }
     if (shield) {
       // The shield absorbs the miss: fresh, fair round from right here.
       shield = false;
@@ -869,21 +1081,8 @@ class GameEngine extends ChangeNotifier {
     _endFever();
     effects.shake = 1;
     effects.glowTarget = 0;
-    final earned = coinsEarned;
-    final summary = RunSummary(
-      score: score,
-      level: level,
-      perfects: perfects,
-      bestPerfectStreak: bestPerfectStreak,
-      coinsEarned: earned,
-      newCoins: earned - coinsBanked,
-      duration: t - runStart,
-      stageName: r.spec.stageName,
-      world: world,
-      continuesUsed: continuesUsed,
-      seed: seed,
-    );
-    coinsBanked = earned;
+    final summary = _summary(t, r);
+    coinsBanked = summary.coinsEarned;
     lastSummary = summary;
     _setPhase(GamePhase.dying);
     _emit(MissEvent(j, summary));

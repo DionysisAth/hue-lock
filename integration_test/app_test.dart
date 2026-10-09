@@ -123,7 +123,7 @@ void main() {
     await waitFor(tester, find.text('TAP TO PLAY'));
 
     // 5. Shop.
-    await tester.tap(find.text('SHOP'));
+    await tester.tap(find.byTooltip('Shop'));
     await waitFor(tester, find.text('BALLS'));
     expect(find.text('Classic'), findsOneWidget);
     await tester.tap(find.text('RINGS'));
@@ -131,8 +131,39 @@ void main() {
     await tester.pageBack();
     await waitFor(tester, find.text('TAP TO PLAY'));
 
-    // 6. Settings: turn on colorblind mode, then play with it.
-    await tester.tap(find.text('SETTINGS'));
+    // 6. Progress and How to play.
+    await tester.tap(find.byTooltip('Progress'));
+    await waitFor(tester, find.text('MISSIONS'));
+    await tester.pageBack();
+    await waitFor(tester, find.text('TAP TO PLAY'));
+    await tester.tap(find.byTooltip('How to play'));
+    await waitFor(tester, find.text('THE BASICS'));
+    await tester.pageBack();
+    await waitFor(tester, find.text('TAP TO PLAY'));
+
+    // 7. Levels: play level 1 to the end with perfect taps.
+    await tester.tap(find.text('LEVELS'));
+    await waitFor(tester, find.text('First Lock'));
+    await tester.tap(find.text('First Lock'));
+    await waitFor(tester, find.text('PLAY'));
+    await tester.tap(find.text('PLAY'));
+    await waitFor(tester, find.text('TAP TO PLAY'), present: false);
+    final lv = engine();
+    expect(lv.mode, RunMode.level);
+    var guard = 0;
+    while (lv.phase != GamePhase.gameOver && guard++ < 40) {
+      await waitPlaying(tester, lv);
+      final wait = untilTargetCenter(lv);
+      lv.tap(lv.time + wait);
+      await waitMs(tester, (wait * 1000).round() + 40);
+    }
+    expect(lv.completed, isTrue);
+    await waitFor(tester, find.text('NEXT'));
+    await tester.tap(find.byTooltip('Home'));
+    await waitFor(tester, find.text('TAP TO PLAY'));
+
+    // 8. Settings: turn on colorblind mode, then play with it.
+    await tester.tap(find.byTooltip('Settings'));
     await waitFor(tester, find.text('Colorblind mode'));
     await tester.tap(find.text('Colorblind mode'));
     await waitMs(tester, 200);

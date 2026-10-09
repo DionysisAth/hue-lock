@@ -10,6 +10,8 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // Needed by flutter_local_notifications (daily reminder).
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -46,4 +48,11 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // Play Games Services v2 (leaderboards, achievements, cloud save).
+    // Only initialized once res/values/games-ids.xml has a real project id.
+    implementation("com.google.android.gms:play-services-games-v2:21.0.0")
 }

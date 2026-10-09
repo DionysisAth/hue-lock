@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
 import 'config/game_config.dart';
+import 'meta/levels.dart';
 import 'services/ads_service.dart';
 import 'services/analytics.dart';
 import 'services/feedback.dart';
+import 'services/game_services.dart';
+import 'services/notifications.dart';
 import 'services/profile_store.dart';
 import 'services/purchase_service.dart';
 import 'ui/game_screen.dart';
@@ -19,7 +22,12 @@ class AppServices {
     required this.ads,
     required this.purchases,
     required this.analytics,
-  }) {
+    GameServices? gameServices,
+    ReminderService? reminders,
+    this.levels = const [],
+    this.warmUpEffects = true,
+  }) : gameServices = gameServices ?? GameServices(enabled: false),
+       reminders = reminders ?? ReminderService(enabled: false) {
     profile.addListener(applySettings);
     applySettings();
   }
@@ -32,6 +40,16 @@ class AppServices {
   final AdsService ads;
   final PurchaseService purchases;
   final Analytics analytics;
+
+  /// Play Games / Game Center (off until configured, see GameServiceIds).
+  final GameServices gameServices;
+  final ReminderService reminders;
+
+  /// Levels mode content (assets/config/levels.json).
+  final List<LevelDef> levels;
+
+  /// Pre-render effects at startup to compile shaders (off in tests).
+  final bool warmUpEffects;
 
   late final adPolicy = AdPolicy(config.ads);
 
@@ -46,6 +64,14 @@ class AppServices {
       ..volume = p.musicVolume;
   }
 
+  /// Signs in to Play Games / Game Center and merges the cloud save.
+  Future<void> _syncCloud() async {
+    if (!gameServices.enabled) return;
+    await gameServices.signIn();
+    final remote = await gameServices.loadProfile();
+    if (remote != null) profile.update((p) => p.mergeFrom(remote));
+  }
+
   /// Non-critical startup work, run after the first frame so the game is
   /// playable immediately.
   Future<void> startBackground() async {
@@ -54,12 +80,31 @@ class AppServices {
       music.init(),
       purchases.init(
         onEntitled: (id) {
-          if (id == Products.removeAds && !profile.profile.adsRemoved) {
-            profile.update((p) => p.adsRemoved = true);
-            analytics.log('purchase', {'product': id});
+          final p = profile.profile;
+          switch (id) {
+            case Products.removeAds:
+              if (p.adsRemoved) return;
+              profile.update((p) => p.adsRemoved = true);
+            case Products.starterPack:
+              // Restores must not grant the coins / tokens twice.
+              if (p.starterPack) return;
+              profile.update((p) {
+                p.starterPack = true;
+                p.adsRemoved = true;
+                p.coins += 1000;
+                p.tokens += 5;
+                p.ownedBalls.add('crown');
+              });
+            case Products.tokens5:
+              profile.update((p) => p.tokens += 5);
+            default:
+              return;
           }
+          analytics.log('purchase', {'product': id});
         },
       ),
+      reminders.init(),
+      _syncCloud(),
       ads.init(),
     ]);
   }

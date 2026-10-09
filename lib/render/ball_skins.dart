@@ -27,6 +27,8 @@ const ballSkins = <BallSkin>[
   BallSkin('smiley', 'Smiley', 350, _smiley),
   BallSkin('moon', 'Moon', 400, _moon),
   BallSkin('gem', 'Gem', 500, _gem),
+  // Starter Pack exclusive (price < 0: not sold for coins).
+  BallSkin('crown', 'Crown', -1, _crown),
 ];
 
 BallSkin ballSkinById(String id) =>
@@ -283,4 +285,39 @@ void _gem(Canvas canvas, Offset c, double r, Color color, double t) {
   final shine = (t * 0.5) % 1.0;
   final sp = c + Offset(-r * 0.25 + shine * r * 0.5, -r * 0.25);
   canvas.drawCircle(sp, r * 0.08, _fill(const Color(0xCCFFFFFF)));
+}
+
+void _crown(Canvas canvas, Offset c, double r, Color color, double t) {
+  _shadedBall(canvas, c, r, color);
+  // A little gold crown on top, with a glint.
+  const gold = Color(0xFFFFD54A);
+  final base = c.dy - r * 0.55;
+  final w = r * 0.9;
+  final crown = Path()
+    ..moveTo(c.dx - w / 2, base)
+    ..lineTo(c.dx - w / 2, base - r * 0.42)
+    ..lineTo(c.dx - w / 4, base - r * 0.2)
+    ..lineTo(c.dx, base - r * 0.5)
+    ..lineTo(c.dx + w / 4, base - r * 0.2)
+    ..lineTo(c.dx + w / 2, base - r * 0.42)
+    ..lineTo(c.dx + w / 2, base)
+    ..close();
+  canvas.drawPath(crown, _fill(gold));
+  canvas.drawPath(
+    crown,
+    Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = r * 0.05
+      ..color = const Color(0xFFB8860B),
+  );
+  for (final dx in [-w / 2, 0.0, w / 2]) {
+    final tip = Offset(c.dx + dx, base - (dx == 0 ? r * 0.5 : r * 0.42));
+    canvas.drawCircle(tip, r * 0.07, _fill(color));
+  }
+  final glint = (t * 0.7) % 1.0;
+  canvas.drawCircle(
+    Offset(c.dx - w / 2 + w * glint, base - r * 0.15),
+    r * 0.05,
+    _fill(const Color(0xDDFFFFFF)),
+  );
 }

@@ -7,6 +7,7 @@ import '../render/ball_skins.dart';
 import '../render/palette.dart';
 import '../render/ring_themes.dart';
 import '../services/feedback.dart';
+import '../services/purchase_service.dart';
 import 'widgets.dart';
 
 /// Cosmetics bought with coins. Nothing here affects timing or difficulty.
@@ -23,7 +24,7 @@ class ShopScreen extends StatelessWidget {
         final theme = ringThemeById(p.theme);
         final palette = HuePalette.of(colorblind: p.colorblind);
         return DefaultTabController(
-          length: 2,
+          length: 3,
           child: Scaffold(
             backgroundColor: theme.bgBottom,
             appBar: AppBar(
@@ -46,6 +47,7 @@ class ShopScreen extends StatelessWidget {
                 tabs: const [
                   Tab(text: 'BALLS'),
                   Tab(text: 'RINGS'),
+                  Tab(text: 'PACKS'),
                 ],
               ),
             ),
@@ -96,6 +98,7 @@ class ShopScreen extends StatelessWidget {
                   }),
                   onEquip: (id) => s.profile.update((p) => p.theme = id),
                 ),
+                const _PacksTab(),
               ],
             ),
           ),
@@ -124,7 +127,8 @@ class ShopScreen extends StatelessWidget {
       itemBuilder: (context, i) {
         final item = items[i];
         final coins = s.profile.profile.coins;
-        final affordable = coins >= item.price;
+        final exclusive = item.price < 0;
+        final affordable = !exclusive && coins >= item.price;
         return Material(
           color: theme.text.withValues(alpha: item.equipped ? 0.16 : 0.06),
           shape: RoundedRectangleBorder(
@@ -155,8 +159,10 @@ class ShopScreen extends StatelessWidget {
                   ..showSnackBar(
                     SnackBar(
                       content: Text(
-                        'You need ${item.price - coins} more coins. '
-                        'Play runs to earn them!',
+                        exclusive
+                            ? 'Exclusive to the Starter Pack (see PACKS).'
+                            : 'You need ${item.price - coins} more coins. '
+                                  'Play runs to earn them!',
                       ),
                     ),
                   );
@@ -183,6 +189,8 @@ class ShopScreen extends StatelessWidget {
                         ? Text('EQUIPPED', style: _tag(theme))
                         : item.owned
                         ? Text('OWNED', style: _tag(theme))
+                        : exclusive
+                        ? Text('STARTER PACK', style: _tag(theme))
                         : Opacity(
                             opacity: affordable ? 1 : 0.5,
                             child: CoinCount(
@@ -382,4 +390,132 @@ class _ThemePainter extends CustomPainter {
   @override
   bool shouldRepaint(_ThemePainter old) =>
       old.theme != theme || old.palette != palette;
+}
+
+/// Real-money packs (the store sets the localized price).
+class _PacksTab extends StatelessWidget {
+  const _PacksTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final s = Services.of(context);
+    return ListenableBuilder(
+      listenable: Listenable.merge([s.profile, s.purchases]),
+      builder: (context, _) {
+        final p = s.profile.profile;
+        final theme = ringThemeById(p.theme);
+        final store = s.purchases;
+        Widget pack({
+          required String title,
+          required String body,
+          required IconData icon,
+          required Color color,
+          required String productId,
+          bool owned = false,
+        }) {
+          final price = store.priceOf(productId);
+          return Container(
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: color.withValues(alpha: 0.6)),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: color, size: 40),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: theme.text,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        body,
+                        style: TextStyle(color: theme.subtleText, height: 1.3),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                owned
+                    ? Text(
+                        'OWNED',
+                        style: TextStyle(
+                          color: theme.subtleText,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      )
+                    : PillButton(
+                        label: price ?? 'BUY',
+                        theme: theme,
+                        color: color,
+                        onPressed: store.storeAvailable && price != null
+                            ? () => store.buy(productId)
+                            : null,
+                      ),
+              ],
+            ),
+          );
+        }
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            pack(
+              title: 'STARTER PACK',
+              body:
+                  'No more ads + 1000 coins + the exclusive Crown ball + '
+                  '5 continue tokens. One time only.',
+              icon: Icons.workspace_premium_rounded,
+              color: coinColor,
+              productId: Products.starterPack,
+              owned: p.starterPack,
+            ),
+            pack(
+              title: '5 CONTINUE TOKENS',
+              body:
+                  'Continue a run without watching an ad. You have '
+                  '${p.tokens}.',
+              icon: Icons.confirmation_number_rounded,
+              color: HuePalette.standard[3],
+              productId: Products.tokens5,
+            ),
+            pack(
+              title: 'REMOVE ADS',
+              body: 'No more interstitial ads. Optional reward videos stay.',
+              icon: Icons.block_rounded,
+              color: HuePalette.standard[1],
+              productId: Products.removeAds,
+              owned: p.adsRemoved,
+            ),
+            if (!store.storeAvailable)
+              Text(
+                'The store is not available right now.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: theme.subtleText),
+              ),
+            if (store.lastError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  store.lastError!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Color(0xFFFF6B6B)),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
 }

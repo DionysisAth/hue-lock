@@ -26,6 +26,39 @@ class PlayerProfile {
   /// Mechanics already explained to this player (see `intros`).
   Set<String> seenIntros = {};
 
+  // Progression.
+  int xp = 0;
+
+  /// Player levels whose rewards were already given.
+  int rewardedLevel = 1;
+  List<Map<String, dynamic>> missions = [];
+  int missionSerial = 0;
+  Set<String> achievements = {};
+
+  /// Lifetime counters (runs, perfects, bosses, ...), see `Stat`.
+  Map<String, int> stats = {};
+
+  // Daily login reward.
+  String lastRewardDay = '';
+  int rewardStreak = 0;
+
+  // Daily Challenge (day key is the Play Games leaderboard day).
+  String dailyDay = '';
+  int dailyAttempts = 0;
+  int dailyExtraAttempts = 0;
+  int dailyBest = 0;
+
+  /// Levels mode: best stars per level id.
+  Map<String, int> levelStars = {};
+
+  /// Continue tokens (from rewards and packs).
+  int tokens = 0;
+  bool starterPack = false;
+  bool dailyReminder = false;
+
+  /// Last local change (milliseconds); used to merge with a cloud save.
+  int updatedAt = 0;
+
   Map<String, dynamic> toJson() => {
     'bestScore': bestScore,
     'coins': coins,
@@ -43,7 +76,64 @@ class PlayerProfile {
     'colorblind': colorblind,
     'adsRemoved': adsRemoved,
     'seenIntros': seenIntros.toList(),
+    'xp': xp,
+    'rewardedLevel': rewardedLevel,
+    'missions': missions,
+    'missionSerial': missionSerial,
+    'achievements': achievements.toList(),
+    'stats': stats,
+    'lastRewardDay': lastRewardDay,
+    'rewardStreak': rewardStreak,
+    'dailyDay': dailyDay,
+    'dailyAttempts': dailyAttempts,
+    'dailyExtraAttempts': dailyExtraAttempts,
+    'dailyBest': dailyBest,
+    'levelStars': levelStars,
+    'tokens': tokens,
+    'starterPack': starterPack,
+    'dailyReminder': dailyReminder,
+    'updatedAt': updatedAt,
   };
+
+  int stat(String key) => stats[key] ?? 0;
+  void addStat(String key, int by) => stats[key] = stat(key) + by;
+  void maxStat(String key, int value) {
+    if (value > stat(key)) stats[key] = value;
+  }
+
+  /// Combines a cloud save with this one without losing progress on either
+  /// device: the further-along save wins for counters, owned things are
+  /// unioned and records keep their best.
+  void mergeFrom(PlayerProfile other) {
+    final otherAhead = other.xp > xp;
+    if (otherAhead) {
+      xp = other.xp;
+      rewardedLevel = other.rewardedLevel;
+      coins = other.coins;
+      tokens = other.tokens;
+      missions = other.missions;
+      missionSerial = other.missionSerial;
+      lastRewardDay = other.lastRewardDay;
+      rewardStreak = other.rewardStreak;
+    }
+    bestScore = bestScore > other.bestScore ? bestScore : other.bestScore;
+    totalRuns = totalRuns > other.totalRuns ? totalRuns : other.totalRuns;
+    ownedBalls.addAll(other.ownedBalls);
+    ownedThemes.addAll(other.ownedThemes);
+    achievements.addAll(other.achievements);
+    seenIntros.addAll(other.seenIntros);
+    adsRemoved = adsRemoved || other.adsRemoved;
+    starterPack = starterPack || other.starterPack;
+    other.stats.forEach((k, v) {
+      if (v > stat(k)) stats[k] = v;
+    });
+    other.levelStars.forEach((k, v) {
+      if (v > (levelStars[k] ?? 0)) levelStars[k] = v;
+    });
+    if (other.dailyDay == dailyDay && other.dailyBest > dailyBest) {
+      dailyBest = other.dailyBest;
+    }
+  }
 
   factory PlayerProfile.fromJson(Map<String, dynamic> j) {
     T get<T>(String k, T fallback) => j[k] is T ? j[k] as T : fallback;
@@ -69,8 +159,37 @@ class PlayerProfile {
       ..adsRemoved = get('adsRemoved', false)
       ..seenIntros = {
         ...((j['seenIntros'] as List?) ?? const []).whereType<String>(),
-      };
+      }
+      ..xp = get('xp', 0)
+      ..rewardedLevel = get('rewardedLevel', 1)
+      ..missions = [
+        for (final m in (j['missions'] as List?) ?? const [])
+          if (m is Map) Map<String, dynamic>.from(m),
+      ]
+      ..missionSerial = get('missionSerial', 0)
+      ..achievements = {
+        ...((j['achievements'] as List?) ?? const []).whereType<String>(),
+      }
+      ..stats = _intMap(j['stats'])
+      ..lastRewardDay = get('lastRewardDay', '')
+      ..rewardStreak = get('rewardStreak', 0)
+      ..dailyDay = get('dailyDay', '')
+      ..dailyAttempts = get('dailyAttempts', 0)
+      ..dailyExtraAttempts = get('dailyExtraAttempts', 0)
+      ..dailyBest = get('dailyBest', 0)
+      ..levelStars = _intMap(j['levelStars'])
+      ..tokens = get('tokens', 0)
+      ..starterPack = get('starterPack', false)
+      ..dailyReminder = get('dailyReminder', false)
+      ..updatedAt = get('updatedAt', 0);
   }
+
+  static Map<String, int> _intMap(Object? raw) => {
+    if (raw is Map)
+      for (final e in raw.entries)
+        if (e.key is String && e.value is num)
+          e.key as String: (e.value as num).toInt(),
+  };
 }
 
 /// Local save. Cloud save can be layered on top by syncing [PlayerProfile]
@@ -107,6 +226,7 @@ class ProfileStore extends ChangeNotifier {
   /// Applies [change], notifies listeners and persists.
   void update(void Function(PlayerProfile p) change) {
     change(profile);
+    profile.updatedAt = DateTime.now().millisecondsSinceEpoch;
     notifyListeners();
     _prefs?.setString(_key, jsonEncode(profile.toJson()));
   }
