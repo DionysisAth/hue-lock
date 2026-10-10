@@ -116,8 +116,7 @@ class RoundGenerator {
       deg(150),
       math.max(diff.zoneSize * sizeFactor, timing.minZoneWindow * maxRel),
     );
-    final reaction = isFirst ? timing.firstRoundLead : timing.minReaction;
-    final minLead = reaction * maxRel;
+    final minLead = _minLead(config, kind, maxRel, width, isFirst: isFirst);
     var maxLead = math.max(minLead, config.zone.maxLeadFraction * tau - width);
     if (kind == RoundKind.split) {
       maxLead = math.max(minLead, math.min(maxLead, minLead + deg(60)));
@@ -465,6 +464,25 @@ class RoundGenerator {
     }
   }
 
+  /// How far ahead (radians of pointer travel) a round's target must start.
+  /// The first round gets extra time. Rule changes (NOT / split, which never
+  /// pause) get extra time too, as much of it as fits in the lap at this
+  /// speed, but never less than the normal reaction time.
+  static double _minLead(
+    GameConfig config,
+    RoundKind kind,
+    double maxRel,
+    double width, {
+    required bool isFirst,
+  }) {
+    final timing = config.timing;
+    if (isFirst) return timing.firstRoundLead * maxRel;
+    final normal = timing.minReaction * maxRel;
+    if (kind != RoundKind.inverted && kind != RoundKind.split) return normal;
+    final room = config.zone.maxLeadFraction * tau - width;
+    return math.max(normal, math.min(timing.ruleChangeLead * maxRel, room));
+  }
+
   /// Returns the list of fairness violations for [spec] (empty = fair).
   /// Used by tests and debug asserts.
   static List<String> validate(
@@ -531,8 +549,14 @@ class RoundGenerator {
     if (spec.kind != RoundKind.boss) {
       final primary = spec.target;
       final lead = travelDistance(pointerLocal, nearEdge(primary), dir);
-      final reaction = isFirst ? timing.firstRoundLead : timing.minReaction;
-      if (lead / maxRel < reaction - eps) {
+      final need = _minLead(
+        config,
+        spec.kind,
+        maxRel,
+        primary.width,
+        isFirst: isFirst,
+      );
+      if (lead < need - eps) {
         problems.add(
           'target only ${(lead / maxRel * 1000).round()}ms ahead of pointer',
         );

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../app.dart';
+import '../config/links.dart';
 import '../render/ring_themes.dart';
 import '../services/purchase_service.dart';
 
@@ -145,6 +147,15 @@ class SettingsScreen extends StatelessWidget {
                   title: Text('Privacy options', style: text),
                   onTap: () => s.ads.showPrivacyOptions(),
                 ),
+              ListTile(
+                leading: Icon(Icons.policy_rounded, color: theme.text),
+                title: Text('Privacy policy', style: text),
+                trailing: Icon(Icons.open_in_new_rounded, color: theme.text),
+                onTap: () => launchUrl(
+                  Uri.parse(Links.privacyPolicy),
+                  mode: LaunchMode.externalApplication,
+                ),
+              ),
               const Divider(),
               ListTile(
                 title: Text('Best score', style: text),

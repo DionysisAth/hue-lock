@@ -316,7 +316,9 @@ class FeverMeter extends StatelessWidget {
         for (var i = 0; i < goal; i++)
           AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutBack,
+            // No overshoot: an overshooting curve would lerp the glow past
+            // zero (a negative blur) when Fever ends.
+            curve: Curves.easeOutCubic,
             margin: const EdgeInsets.symmetric(horizontal: 2.5),
             width: i < filled ? 22 : 16,
             height: 6,

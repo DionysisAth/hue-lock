@@ -1,4 +1,4 @@
-package com.huelock.hue_lock
+package com.nwbn.huelock
 
 import android.os.Bundle
 import com.google.android.gms.games.PlayGamesSdk

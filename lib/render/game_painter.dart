@@ -1028,7 +1028,11 @@ class GamePainter extends CustomPainter {
   }
 
   void _paintTexts(Canvas canvas, RingLayout layout, Effects fx) {
-    var slot = 0;
+    // Below the ring, drifting upward, so it never covers the score HUD.
+    // Stacked by each text's own height, so a big streak word never
+    // overlaps the line under it.
+    var y =
+        layout.center.dy + layout.radius * 1.45 + (fx.banner != null ? 64 : 0);
     for (final text in fx.texts.reversed) {
       final k = Curves.easeOut.transform(text.t);
       final color = text.color < 0 ? theme.text : palette[text.color];
@@ -1042,20 +1046,13 @@ class GamePainter extends CustomPainter {
         glow: theme.dark ? 12 : 0,
         pixelRatio: pixelRatio,
       );
-      // Below the ring, drifting upward, so it never covers the score HUD.
-      final y =
-          layout.center.dy +
-          layout.radius * 1.45 +
-          (fx.banner != null ? 64 : 0) +
-          slot * 36 -
-          k * 22;
       sprite.paint(
         canvas,
-        Offset(layout.center.dx, y),
+        Offset(layout.center.dx, y - k * 22),
         scale: pop,
         opacity: 1 - text.t * text.t,
       );
-      slot++;
+      y += sprite.textHeight * (text.huge ? 1.05 : 0.95);
     }
   }
 

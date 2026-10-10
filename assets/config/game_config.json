@@ -9,6 +9,7 @@
     "minReactionMs": 380,
     "splitSecondLeadMs": 650,
     "firstRoundLeadMs": 650,
+    "ruleChangeLeadMs": 600,
     "minZoneWindowMs": 75,
     "maxTapLookbackMs": 120,
     "deathFreezeMs": 380,
@@ -71,8 +72,7 @@
   },
 
   "announce": {
-    "_comment": "Pauses (round frozen, banner shown) so rule changes are readable before the pointer moves: repeat = every NOT / split round. New mechanics are explained by a banner without pausing (Levels mode teaches them).",
-    "repeatMs": 1000,
+    "_comment": "Only boss rounds (and a shield save) freeze the run. NOT / split rounds show a banner and start their target at least timing.ruleChangeLeadMs ahead instead; new mechanics get a banner (Levels mode teaches them).",
     "shieldMs": 1000
   },
 

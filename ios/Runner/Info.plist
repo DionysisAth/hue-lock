@@ -69,6 +69,9 @@
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
 	<!-- AdMob. This is Google's public SAMPLE app id: replace with the real one before release. -->
+	<!-- Only standard HTTPS: no export-compliance paperwork per upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-3940256099942544~1458002511</string>
 	<key>NSUserTrackingUsageDescription</key>

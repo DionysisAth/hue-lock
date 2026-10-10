@@ -4,20 +4,28 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+import '../config/ad_ids.dart';
 import '../config/game_config.dart';
 import 'profile_store.dart';
 
-/// Ad unit ids. These are Google's public TEST units; replace them with the
-/// real AdMob units (and the app ids in AndroidManifest.xml / Info.plist)
-/// before release.
+/// The ad units to load: the real ones from [AdIds] in store builds, and
+/// Google's public test units in debug / test builds or until set up.
 class AdUnitIds {
+  static const _forceTest = bool.fromEnvironment('TEST_ADS');
+
+  static String _pick(String real, String test) =>
+      kReleaseMode && !_forceTest && real.isNotEmpty ? real : test;
+
   static String get interstitial => Platform.isIOS
-      ? 'ca-app-pub-3940256099942544/4411468910'
-      : 'ca-app-pub-3940256099942544/1033173712';
+      ? _pick(AdIds.iosInterstitial, 'ca-app-pub-3940256099942544/4411468910')
+      : _pick(
+          AdIds.androidInterstitial,
+          'ca-app-pub-3940256099942544/1033173712',
+        );
 
   static String get rewarded => Platform.isIOS
-      ? 'ca-app-pub-3940256099942544/1712485313'
-      : 'ca-app-pub-3940256099942544/5224354917';
+      ? _pick(AdIds.iosRewarded, 'ca-app-pub-3940256099942544/1712485313')
+      : _pick(AdIds.androidRewarded, 'ca-app-pub-3940256099942544/5224354917');
 }
 
 /// When interstitials may show (design doc 11.5). Pure so it can be tested.

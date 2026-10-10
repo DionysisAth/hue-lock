@@ -63,7 +63,7 @@ String? streakWord(int streak) {
 }
 
 /// Mechanics that change the rules: they also get a short pause every time.
-const _alwaysPause = {'not', 'split'};
+const _alwaysBanner = {'not', 'split'};
 
 enum RunMode {
   /// The high-score mode.
@@ -925,12 +925,10 @@ class GameEngine extends ChangeNotifier {
     _announce(r, dir, isFirst: isFirst);
   }
 
-  /// Freezes the round behind a banner when it brings something the player
-  /// cannot be expected to react to instantly: a boss sequence, a rule
-  /// change (NOT / split) or a mechanic they have never seen.
+  /// Shows what a round brings. Only a boss round freezes (to show its
+  /// sequence); everything else is a banner while play goes on.
   void _announce(ActiveRound r, int previousDir, {required bool isFirst}) {
     final spec = r.spec;
-    final a = config.announce;
     if (spec.kind == RoundKind.boss) {
       final firstBoss = !seen.contains('boss');
       _markSeen('boss');
@@ -965,18 +963,16 @@ class GameEngine extends ChangeNotifier {
       if (spec.zones.any((z) => z.isBonus)) 'greedy',
       if (spec.zones.any((z) => z.powerUp != null)) 'powerup',
     ];
-    var hold = 0.0;
     String? banner;
     var bannerIsNew = false;
     for (final name in found) {
       final isNew = !seen.contains(name);
-      // New mechanics get an explanation banner but never freeze the run
-      // (Levels mode is where they are taught). Rule changes (NOT / split)
-      // always get a short warning pause.
-      if (_alwaysPause.contains(name)) hold = math.max(hold, a.repeat);
+      // Nothing here freezes the run (only boss rounds do). New mechanics
+      // get an explanation banner once; rule changes (NOT / split) get a
+      // reminder banner every time, and their target starts further ahead.
       if (isNew) {
         _markSeen(name);
-      } else if (!_alwaysPause.contains(name)) {
+      } else if (!_alwaysBanner.contains(name)) {
         continue;
       }
       if (banner == null) {
@@ -991,9 +987,8 @@ class GameEngine extends ChangeNotifier {
       title,
       subtitle: subtitle,
       color: color,
-      life: math.max(hold, bannerIsNew ? 2.4 : 1.0) + 0.4,
+      life: (bannerIsNew ? 2.4 : 1.0) + 0.4,
     );
-    if (hold > 0) _hold(hold);
   }
 
   void _markSeen(String name) {

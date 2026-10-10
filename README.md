@@ -11,9 +11,9 @@ Challenge, Zen, friend duels, XP, missions, daily rewards and achievements.
 Nothing needs a server: leaderboards, achievements and cloud save use the free
 Google Play Games / Game Center services, and duels work with a share code.
 
-| Home & game over | Neon / Candy (colorblind mode) | Shop & settings |
-|---|---|---|
-| ![](docs/screenshots/classic.png) | ![](docs/screenshots/game_over_themes.png) | ![](docs/screenshots/menus.png) |
+| Home | Perfect streak | NOT round | Levels |
+|---|---|---|---|
+| ![](docs/store/screenshots/1_home.png) | ![](docs/store/screenshots/2_perfect.png) | ![](docs/store/screenshots/3_not.png) | ![](docs/store/screenshots/5_levels.png) |
 
 ## What makes a run
 
@@ -58,14 +58,16 @@ Google Play Games / Game Center services, and duels work with a share code.
 - **Adaptive music.** Four stacked layers build with the run, Fever plays
   the full mix, and a miss cuts it to silence.
 
-- **Time to react.** Nothing new ever starts under the pointer's nose. The
-  round freezes behind a banner in these cases:
-  - Before every NOT and split round (1 s).
-  - After a shield save (1 s).
-  - Before a boss round, the colors are shown one by one (longer the first
-    time).
+- **Time to react.** Nothing new ever starts under the pointer's nose, and
+  only a boss round stops the pointer:
+  - Before a boss round, the run freezes while the colors are shown one by
+    one (longer the first time).
+  - NOT and split rounds don't pause. They show a reminder banner, and their
+    target starts at least 600 ms ahead of the pointer instead of the usual
+    380 ms, or as much of that as fits in the lap at top speed.
   - A split's second color is at least 650 ms behind the first, or it is due
     on the next pass.
+  - After a shield save, a fresh round starts behind a 1 s pause.
   - Ghost zones always start visible.
 
   A mechanic seen for the first time gets a 2.4 s banner with a one-line
@@ -160,7 +162,7 @@ test/         generator fairness, hit judging, engine, modes, levels,
 
 | Mode | What it is | Where |
 |---|---|---|
-| **Endless** | The high-score mode (tap on home). New mechanics show a short banner but never freeze the run. NOT and split rounds always get a 1 s warning. | `GameEngine` (`RunMode.endless`) |
+| **Endless** | The high-score mode (tap on home). New mechanics and NOT / split rounds show a banner but never freeze the run; only boss rounds pause. | `GameEngine` (`RunMode.endless`) |
 | **Levels** | 24 short levels in 8 chapters. Each chapter teaches one mechanic: basics, reverse/greedy/lock sets, NOT/decoys, spin/ghost, split, surge, boss memory, mastery. You get 1-3 stars for your Perfect ratio, and each level unlocks the next. | `assets/config/levels.json`, `lib/meta/levels.dart`, `lib/ui/levels_screen.dart` |
 | **Daily Challenge** | The same seeded run for everyone today, on the Pacific-time day that matches Play Games daily leaderboards. One free attempt, plus up to 2 more for a rewarded ad. No continues. | `dailyChallengeDay` / `dailySeed` in `lib/meta/progression.dart` |
 | **Zen** | No game over and no score. A miss just resets the streak. | `GameEngine._onMiss` |
@@ -183,38 +185,42 @@ test/         generator fairness, hit judging, engine, modes, levels,
 - **Stats** and everything else are on the Progress screen (trophy icon on
   home).
 
-## Before release (not done yet)
+## Releasing
 
-- **AdMob:** replace Google's *sample* app ids in `AndroidManifest.xml` and
-  `Info.plist`, and the *test* ad units in `AdUnitIds`. Set up the UMP
-  GDPR message and IDFA message in AdMob. Add mediation adapters.
-- **IAP:** create these products in App Store Connect and Play Console:
-  - `hue_lock_remove_ads`: non-consumable.
-  - `hue_lock_starter_pack`: non-consumable.
-  - `hue_lock_tokens_5`: consumable.
+The app is ready for the stores. **[docs/RELEASE.md](docs/RELEASE.md)** is
+the step-by-step guide: accounts, AdMob ids, the upload key, creating the
+listing and uploading. Everything for the listing (texts, data safety
+answers, icon, feature graphic, screenshots) is in
+[docs/store/](docs/store/listing.md).
 
-  Add **server-side receipt validation** if you want it (see the TODO in
-  `StorePurchaseService`). The app works without it.
-- **Leaderboards, achievements, cloud save (free, optional).** They are off
-  until set up, and the app runs fine without them. To turn them on:
-  1. Play Console > Play Games Services: create the game, two leaderboards
-     (Endless best, Daily Challenge) and the achievements from
-     `achievementDefs`. Turn on Saved Games.
-  2. Put the project id in `android/app/src/main/res/values/games-ids.xml`.
-  3. App Store Connect: create the same leaderboards and achievements, and
-     enable the Game Center capability in Xcode.
-  4. Fill in `GameServiceIds` in `lib/services/game_services.dart` and set
-     `configured = true`.
-- **Android signing** config (release builds currently use the debug key) and
-  final application id / bundle id (`com.huelock.hue_lock`).
-- App icons, splash screen, store listing, privacy policy, age rating.
-- Plug a real analytics backend (Firebase / GameAnalytics) into `Analytics`.
-- Replace the synthesized placeholder sounds and music loops with designed
-  ones (keep the file names; music_1..4 must share length and tempo).
-- Test input latency and frame pacing on low-end Android devices. Some
-  Android phones need `flutter_displaymode` to run at 90/120 Hz.
-- Settle the open decisions in design doc section 19: name, currencies,
-  interstitial frequency (currently 4), exact tuning numbers.
+- **Package / bundle id:** `com.nwbn.huelock`.
+- **Version:** `pubspec.yaml` sets the version name (1.0.0). The build number
+  is the CI run number, so every build can be uploaded.
+- **Builds:** each CI run publishes:
+  - `hue-lock.apk`: for testing, always with test ads.
+  - `hue-lock.aab`: for Google Play, with real ads and signed with your
+    upload key once its secrets are set.
+- **Icons and splash:** generated by `tool/generate_icon.py`.
+
+Later improvements, none of them needed for launch:
+- Server-side receipt validation (see the TODO in `StorePurchaseService`).
+- A real analytics backend behind `Analytics`.
+- Designed sounds and music to replace the synthesized ones. Keep the file
+  names; music_1..4 must share length and tempo.
+- Mediation adapters for AdMob.
+
+### Leaderboards, achievements, cloud save (free, optional)
+
+They are off until set up, and the app runs fine without them. To turn them
+on:
+1. Play Console → Play Games Services: create the game, two leaderboards
+   (Endless best, Daily Challenge) and the achievements from
+   `achievementDefs`. Turn on Saved Games.
+2. Put the project id in `android/app/src/main/res/values/games-ids.xml`.
+3. App Store Connect: create the same leaderboards and achievements, and
+   enable the Game Center capability in Xcode.
+4. Fill in `GameServiceIds` in `lib/services/game_services.dart` and set
+   `configured = true`.
 
 ## Not done (and why)
 

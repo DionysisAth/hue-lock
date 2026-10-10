@@ -49,6 +49,10 @@ class TextSprite {
 /// Small LRU cache of [TextSprite]s ("PERFECT x3", streak words, banners).
 abstract final class TextSprites {
   static const _capacity = 64;
+
+  /// Font for canvas text; null = the platform default (what the app uses).
+  /// The screenshot tool sets it, since tests have no platform font.
+  static String? fontFamily;
   static final _cache = <String, TextSprite>{}; // insertion-ordered
 
   static TextSprite get(
@@ -79,6 +83,7 @@ abstract final class TextSprites {
     final sprite = _render(
       text,
       TextStyle(
+        fontFamily: fontFamily,
         color: color,
         fontSize: fontSize,
         fontWeight: weight,

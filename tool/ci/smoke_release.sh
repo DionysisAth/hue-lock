@@ -6,7 +6,7 @@
 #   tool/ci/smoke_release.sh hue-lock.apk
 set -u
 APK=$1
-PKG=com.huelock.hue_lock
+PKG=com.nwbn.huelock
 OUT=ci-out
 mkdir -p "$OUT"
 

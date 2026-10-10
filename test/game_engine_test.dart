@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hue_lock/core/angles.dart';
 import 'package:hue_lock/game/effects.dart';
@@ -274,52 +276,70 @@ void main() {
       expect(e.phase, GamePhase.playing);
     });
 
-    test(
-      'only NOT and split rounds pause; each mechanic is explained once',
-      () {
-        final events = <GameEvent>[];
-        final e = newEngine(events, fresh: true)..startRun(best: 0, seed: 11);
-        final paused = <String, int>{};
-        final rounds = <String, int>{};
-        var calmPauses = 0;
-        var guard = 0;
-        while (e.level < 80 && guard++ < 400) {
-          waitUntilPlaying(e);
-          tapTargetCenter(e);
-          final r = e.round;
-          if (r == null || e.phase == GamePhase.dying) break;
-          final kind = r.spec.kind;
-          if (r.step != 0 || kind == RoundKind.boss) continue;
-          final key = kind == RoundKind.inverted
-              ? 'not'
-              : kind == RoundKind.split
-              ? 'split'
-              : null;
-          if (key == null) {
-            if (e.phase == GamePhase.countdown) calmPauses++;
-            continue;
-          }
-          rounds[key] = (rounds[key] ?? 0) + 1;
-          if (e.phase == GamePhase.countdown) {
-            paused[key] = (paused[key] ?? 0) + 1;
-          }
+    test('only boss rounds pause; NOT / split get a banner and extra lead', () {
+      final events = <GameEvent>[];
+      final e = newEngine(events, fresh: true)..startRun(best: 0, seed: 11);
+      final rounds = <String, int>{};
+      var pauses = 0;
+      var bossPauses = 0;
+      var fullLead = 0;
+      var guard = 0;
+      while (e.level < 80 && guard++ < 400) {
+        waitUntilPlaying(e);
+        tapTargetCenter(e);
+        final r = e.round;
+        if (r == null || e.phase == GamePhase.dying) break;
+        final kind = r.spec.kind;
+        if (r.step != 0) continue;
+        if (kind == RoundKind.boss) {
+          if (e.phase == GamePhase.countdown) bossPauses++;
+          continue;
         }
-        expect(events.whereType<MissEvent>(), isEmpty);
-        expect(rounds['not'], greaterThan(1));
-        expect(paused['not'], rounds['not']);
-        expect(rounds['split'], greaterThan(1));
-        expect(paused['split'], rounds['split']);
-        expect(calmPauses, 0, reason: 'new mechanics never freeze the run');
-        final introduced = events.whereType<IntroSeenEvent>().map(
-          (x) => x.name,
+        if (e.phase == GamePhase.countdown) pauses++;
+        final key = kind == RoundKind.inverted
+            ? 'not'
+            : kind == RoundKind.split
+            ? 'split'
+            : null;
+        if (key == null) continue;
+        rounds[key] = (rounds[key] ?? 0) + 1;
+        expect(e.effects.banner?.title, intros[key]!.$1);
+        // The target starts far enough ahead to read the new rule: the
+        // full rule-change lead when it fits in the lap at this speed,
+        // never less than the normal reaction time.
+        final z = r.currentPrimary;
+        final nearEdge = wrapAngle(z.center - r.spec.pointerDir * z.halfWidth);
+        final lead = r.timeWhenAt(r.startTime, nearEdge) - r.startTime;
+        final maxRel = r.spec.maxRelativeSpeed;
+        final room = (config.zone.maxLeadFraction * tau - z.width) / maxRel;
+        final need = math.max(
+          config.timing.minReaction,
+          math.min(config.timing.ruleChangeLead, room),
         );
         expect(
-          introduced.toSet(),
-          containsAll(['intro', 'not', 'reverse', 'boss', 'split']),
+          lead,
+          greaterThanOrEqualTo(need - 1e-3),
+          reason: '$key round at level ${e.level}',
         );
-        expect(introduced.length, introduced.toSet().length, reason: 'once');
-      },
-    );
+        if (lead >= config.timing.ruleChangeLead - 1e-3) fullLead++;
+      }
+      expect(events.whereType<MissEvent>(), isEmpty);
+      expect(rounds['not'], greaterThan(1));
+      expect(rounds['split'], greaterThan(1));
+      expect(pauses, 0, reason: 'only boss rounds freeze the run');
+      expect(bossPauses, greaterThan(0));
+      expect(
+        fullLead,
+        greaterThan((rounds['not']! + rounds['split']!) ~/ 2),
+        reason: 'most rule changes get the full extra lead',
+      );
+      final introduced = events.whereType<IntroSeenEvent>().map((x) => x.name);
+      expect(
+        introduced.toSet(),
+        containsAll(['intro', 'not', 'reverse', 'boss', 'split']),
+      );
+      expect(introduced.length, introduced.toSet().length, reason: 'once');
+    });
   });
 
   test('a boss round punishes the wrong order', () {

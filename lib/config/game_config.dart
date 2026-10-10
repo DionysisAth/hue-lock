@@ -121,6 +121,9 @@ class TimingConfig {
       minReaction = _ms(m, 'minReactionMs'),
       splitSecondLead = _ms(m, 'splitSecondLeadMs'),
       firstRoundLead = _ms(m, 'firstRoundLeadMs'),
+      ruleChangeLead = m.containsKey('ruleChangeLeadMs')
+          ? _ms(m, 'ruleChangeLeadMs')
+          : _ms(m, 'firstRoundLeadMs'),
       minZoneWindow = _ms(m, 'minZoneWindowMs'),
       maxTapLookback = _ms(m, 'maxTapLookbackMs'),
       deathFreeze = _ms(m, 'deathFreezeMs'),
@@ -145,6 +148,10 @@ class TimingConfig {
   /// The second color of a split ball is at least this far behind the first.
   final double splitSecondLead;
   final double firstRoundLead;
+
+  /// NOT and split rounds change the rule without pausing, so their target
+  /// starts at least this far ahead (seconds) to give time to read it.
+  final double ruleChangeLead;
 
   /// A target is never shorter than this to sweep through.
   final double minZoneWindow;
@@ -417,12 +424,7 @@ class AdsConfig {
 }
 
 class AnnounceConfig {
-  AnnounceConfig._(Map<String, dynamic> m)
-    : repeat = _ms(m, 'repeatMs'),
-      shield = _ms(m, 'shieldMs');
-
-  /// Pause before every later NOT / split round.
-  final double repeat;
+  AnnounceConfig._(Map<String, dynamic> m) : shield = _ms(m, 'shieldMs');
 
   /// Pause after a shield absorbs a miss.
   final double shield;
