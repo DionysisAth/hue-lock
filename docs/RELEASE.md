@@ -91,15 +91,53 @@ screen, tracking prompt), but it can't be built here. You need:
      safety form).
    - Add the screenshots and the texts.
 
-## 4. Optional, free: leaderboards, achievements, cloud save
+## 4. Leaderboards and cloud save (Google Play Games, free)
 
-Set up Play Games Services in Play Console (and Game Center in App Store
-Connect), then send Claude:
-- the project id
-- the leaderboard ids
-- the achievement ids
+The code is in place: three leaderboards (Endless best, Daily Challenge,
+Level stars), a weekly rank on the home screen, "N points to pass <player>"
+on the game-over screen, achievements, and cloud save that merges progress
+across devices. It switches on once the game exists in Play Games Services.
+This needs the app created in Play Console first (section 1, step 3).
 
-See the README section "Leaderboards, achievements, cloud save".
+1. **Play Console → Grow users → Play Games Services → Setup and
+   management → Configuration.** Choose "No, my game doesn't use Google
+   APIs", name it "Hue Lock", and create it.
+2. **Credentials → Add credential → Android.** Pick the Hue Lock app. It
+   needs an OAuth client with the app's signing certificate (SHA-1).
+   Create **two** credentials:
+   - **Play App Signing key:** copy its SHA-1 from Play Console → Test and
+     release → App integrity → App signing. This one is for the store
+     version.
+   - **Upload key:** its SHA-1 is in the chat (and you can get it with
+     `keytool -list -v -keystore hue-lock-upload.jks`). This one is for the
+     test APKs, which CI signs with the upload key once its secrets are set.
+3. **Saved Games:** in Configuration → Properties, turn **Saved Games** on.
+   This is the cloud save.
+4. **Leaderboards → Add leaderboard,** three times (all "Larger is
+   better", format "Numeric"):
+   - `Endless`: the best Endless score
+   - `Daily Challenge`
+   - `Level stars`: limit it to 0 – 180
+
+   Play Games keeps daily, weekly and all-time views of each one.
+5. **Achievements (optional):** one per entry in `achievementDefs` in
+   `lib/meta/progression.dart` (18). Achievements must be created before
+   publishing, but you can skip them; the leaderboards work without them.
+6. **Testers:** under Testers, add your Google account (and your closed
+   testers). Until Play Games Services is published, only testers can sign
+   in.
+7. **Get resources:** on the Leaderboards page, click **Get resources** and
+   copy the whole XML. **Send it to Claude.** It holds the project id and
+   every leaderboard and achievement id; they go into
+   `android/app/src/main/res/values/games-ids.xml` and
+   `lib/services/game_services.dart`.
+8. **Publish** Play Games Services (Publishing tab) together with the app.
+9. Update the **Data safety** form for Play Games (see
+   [store/listing.md](store/listing.md#data-safety-form-play)).
+
+iOS uses Game Center instead: enable the Game Center capability in Xcode and
+create the same three leaderboards in App Store Connect with the ids
+`hue_lock_endless`, `hue_lock_daily` and `hue_lock_stars`.
 
 ## Checklist before pressing "Publish"
 
@@ -108,4 +146,5 @@ See the README section "Leaderboards, achievements, cloud save".
 - [ ] In-app products are created and **active**
 - [ ] Listing, content rating, target audience, data safety and ads
       declaration are complete
+- [ ] Play Games Services published, its ids in the app
 - [ ] Closed test done (12 testers × 14 days, for new personal accounts)

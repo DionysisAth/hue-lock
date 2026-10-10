@@ -7,6 +7,7 @@ import '../game/round.dart';
 import '../game/star_goals.dart';
 import '../meta/levels.dart';
 import '../meta/progression.dart';
+import '../render/game_painter.dart' show comboHeat;
 import '../render/palette.dart';
 import '../render/ring_themes.dart';
 import 'perk_overlay.dart';
@@ -20,7 +21,7 @@ TextStyle hudLabel(RingTheme theme, {double size = 14}) => TextStyle(
 );
 
 /// In-run heads-up display: mode line, score (or Zen hits / level progress),
-/// Fever meter and active modifiers. Never takes taps.
+/// combo meter and active modifiers. Never takes taps.
 class Hud extends StatelessWidget {
   const Hud({super.key, required this.engine, required this.theme, this.level});
 
@@ -77,12 +78,6 @@ class Hud extends StatelessWidget {
   Widget build(BuildContext context) {
     final e = engine;
     final chips = <Widget>[
-      if (e.fever)
-        _chip(
-          'FEVER x${e.config.fever.pointsMultiplier}',
-          icon: Icons.local_fire_department_rounded,
-          color: const Color(0xFFFF7A2F),
-        ),
       if (e.multiplier > 1) _chip('COMBO x${e.multiplier}'),
       if (e.shield)
         _chip(
@@ -167,10 +162,11 @@ class Hud extends StatelessWidget {
               else
                 _BestLine(engine: e, theme: theme),
               const SizedBox(height: 8),
-              FeverMeter(
+              ComboMeter(
                 streak: e.perfectStreak,
-                goal: e.feverGoal,
-                fever: e.fever,
+                step: e.comboStep,
+                multiplier: e.multiplier,
+                maxMultiplier: e.config.scoring.maxMultiplier,
                 theme: theme,
               ),
               const SizedBox(height: 8),
@@ -309,9 +305,13 @@ class _LiveGoals extends StatelessWidget {
             ),
             const SizedBox(width: 3),
             Text(
-              g.type == GoalType.shield
-                  ? g.shortText
-                  : '${g.shortText} ${math.min(g.value(now), g.target)}/${g.target}',
+              switch (g.type) {
+                GoalType.shield => g.shortText,
+                GoalType.combo =>
+                  'COMBO x${math.min(g.value(now), g.target)}/x${g.target}',
+                _ =>
+                  '${g.shortText} ${math.min(g.value(now), g.target)}/${g.target}',
+              },
               style: hudLabel(theme, size: 10).copyWith(
                 letterSpacing: 1,
                 color: g.met(now) ? coinColor : theme.subtleText,
@@ -429,55 +429,43 @@ class _AnimatedScoreState extends State<AnimatedScore>
   }
 }
 
-/// Perfect streak progress toward Fever: one segment per Perfect.
-class FeverMeter extends StatelessWidget {
-  const FeverMeter({
+/// Progress toward the next combo step: one segment per Perfect in a row
+/// (all lit at the top combo), colored like the combo's heat.
+class ComboMeter extends StatelessWidget {
+  const ComboMeter({
     super.key,
     required this.streak,
-    required this.goal,
-    required this.fever,
+    required this.step,
+    required this.multiplier,
+    required this.maxMultiplier,
     required this.theme,
   });
 
   final int streak;
-  final int goal;
-  final bool fever;
+  final int step;
+  final int multiplier;
+  final int maxMultiplier;
   final RingTheme theme;
-
-  static const _hot = Color(0xFFFF7A2F);
 
   @override
   Widget build(BuildContext context) {
-    final filled = fever ? goal : math.min(streak, goal);
+    final maxed = multiplier >= maxMultiplier;
+    final filled = maxed ? step : streak % step;
+    final next = math.min(multiplier + 1, comboHeat.length);
+    final color = maxed ? comboHeat.last : comboHeat[math.max(1, next - 1)];
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (var i = 0; i < goal; i++)
+        for (var i = 0; i < step; i++)
           AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            // No overshoot: an overshooting curve would lerp the glow past
-            // zero (a negative blur) when Fever ends.
             curve: Curves.easeOutCubic,
             margin: const EdgeInsets.symmetric(horizontal: 2.5),
-            width: i < filled ? 22 : 16,
+            width: i < filled ? 26 : 20,
             height: 6,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(3),
-              color: i < filled
-                  ? Color.lerp(
-                      HuePalette.standard[2],
-                      _hot,
-                      goal <= 1 ? 1 : i / (goal - 1),
-                    )
-                  : theme.text.withValues(alpha: 0.14),
-              boxShadow: i < filled && theme.dark
-                  ? [
-                      BoxShadow(
-                        color: _hot.withValues(alpha: fever ? 0.8 : 0.4),
-                        blurRadius: fever ? 10 : 5,
-                      ),
-                    ]
-                  : null,
+              color: i < filled ? color : theme.text.withValues(alpha: 0.14),
             ),
           ),
       ],

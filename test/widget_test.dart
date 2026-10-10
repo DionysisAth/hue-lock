@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hue_lock/app.dart';
 import 'package:hue_lock/game/game_engine.dart';
@@ -9,23 +10,26 @@ import 'package:hue_lock/meta/levels.dart';
 import 'package:hue_lock/services/ads_service.dart';
 import 'package:hue_lock/services/analytics.dart';
 import 'package:hue_lock/services/feedback.dart';
+import 'package:hue_lock/services/game_services.dart';
 import 'package:hue_lock/services/profile_store.dart';
 import 'package:hue_lock/services/purchase_service.dart';
 
 import 'test_helpers.dart';
 
-AppServices fakeServices({PlayerProfile? profile}) => AppServices(
-  config: loadTestConfig(),
-  profile: ProfileStore.memory(profile),
-  audio: AudioService(enabled: false),
-  music: MusicService(enabled: false),
-  haptics: HapticsService()..enabled = false,
-  ads: NoAdsService(),
-  purchases: NoPurchaseService(),
-  analytics: NoAnalytics(),
-  levels: parseLevels(File('assets/config/levels.json').readAsStringSync()),
-  warmUpEffects: false,
-);
+AppServices fakeServices({PlayerProfile? profile, GameServices? games}) =>
+    AppServices(
+      config: loadTestConfig(),
+      profile: ProfileStore.memory(profile),
+      audio: AudioService(enabled: false),
+      music: MusicService(enabled: false),
+      haptics: HapticsService()..enabled = false,
+      ads: NoAdsService(),
+      purchases: NoPurchaseService(),
+      analytics: NoAnalytics(),
+      levels: parseLevels(File('assets/config/levels.json').readAsStringSync()),
+      warmUpEffects: false,
+      gameServices: games,
+    );
 
 void main() {
   testWidgets('home screen shows title and best, tap starts a run', (
@@ -100,6 +104,35 @@ void main() {
 }
 
 void _progressionTests() {
+  testWidgets('signed in: weekly rank on home, the player to pass on game '
+      'over', (tester) async {
+    final games = GameServices(enabled: false)
+      ..signedIn = true
+      ..weeklyRank = const RankInfo(
+        rank: 12,
+        score: 50,
+        rivalName: 'Alex',
+        rivalScore: 80,
+      );
+    final s = fakeServices(
+      profile: PlayerProfile()..seenIntros.addAll(intros.keys),
+      games: games,
+    );
+    await tester.pumpWidget(HueLockApp(services: s));
+    await tester.pump();
+    expect(find.text('#12 THIS WEEK'), findsOneWidget);
+    // Start, then miss straight away.
+    await tester.tapAt(const Offset(200, 300));
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.tapAt(const Offset(200, 300));
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(find.text('TAP TO RETRY'), findsOneWidget);
+    expect(find.text('81 points to pass Alex (#11)'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 200));
+  });
+
   testWidgets('beating a boss shows the perk picker; a tap picks one', (
     tester,
   ) async {
@@ -139,8 +172,17 @@ void _progressionTests() {
     await tester.tap(find.text('LEVELS'));
     await _settle(tester);
     expect(find.text('THE BASICS'), findsOneWidget);
-    expect(find.text('CHAPTER 2'), findsOneWidget);
+    await tester.dragUntilVisible(
+      find.text('CHAPTER 2'),
+      find.byType(ListView),
+      const Offset(0, -200),
+    );
     expect(find.text('???'), findsWidgets, reason: 'locked chapters hide');
+    await tester.dragUntilVisible(
+      find.text(s.levels.first.title),
+      find.byType(ListView),
+      const Offset(0, 200),
+    );
     // The level's name opens it too, not just its circle.
     await tester.tap(find.text(s.levels.first.title));
     await _settle(tester);

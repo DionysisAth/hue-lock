@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/services.dart' show rootBundle;
 
+import '../game/round.dart' show PowerUp;
+
 const _deg = math.pi / 180;
 
 /// Typed view of `assets/config/game_config.json`.
@@ -35,7 +37,6 @@ class GameConfig {
         raw['locks'] as Map<String, dynamic>,
         'setBonusPerLock',
       ),
-      fever = FeverConfig._(raw['fever'] as Map<String, dynamic>),
       powerUps = PowerUpConfig._(raw['powerUps'] as Map<String, dynamic>),
       boss = BossConfig._(raw['boss'] as Map<String, dynamic>),
       worlds = WorldsConfig._(raw['worlds'] as Map<String, dynamic>),
@@ -77,7 +78,6 @@ class GameConfig {
   final GhostConfig ghost;
   final BonusZoneConfig bonusZone;
   final int setBonusPerLock;
-  final FeverConfig fever;
   final PowerUpConfig powerUps;
   final BossConfig boss;
   final WorldsConfig worlds;
@@ -287,17 +287,6 @@ class BonusZoneConfig {
   final int points;
 }
 
-class FeverConfig {
-  FeverConfig._(Map<String, dynamic> m)
-    : perfectStreak = _i(m, 'perfectStreak'),
-      pointsMultiplier = _i(m, 'pointsMultiplier'),
-      speedFactor = _d(m, 'speedFactor');
-
-  final int perfectStreak;
-  final int pointsMultiplier;
-  final double speedFactor;
-}
-
 class PowerUpConfig {
   PowerUpConfig._(Map<String, dynamic> m)
     : chance = _d(m, 'chance'),
@@ -305,7 +294,13 @@ class PowerUpConfig {
       slowRounds = _i(m, 'slowRounds'),
       slowFactor = _d(m, 'slowFactor'),
       wideRounds = _i(m, 'wideRounds'),
-      wideFactor = _d(m, 'wideFactor');
+      wideFactor = _d(m, 'wideFactor'),
+      types = m['types'] == null
+          ? PowerUp.values
+          : [
+              for (final t in m['types'] as List)
+                PowerUp.values.firstWhere((p) => p.name == t),
+            ];
 
   final double chance;
   final int minLevel;
@@ -313,6 +308,9 @@ class PowerUpConfig {
   final double slowFactor;
   final int wideRounds;
   final double wideFactor;
+
+  /// Which power-ups can appear (all unless a level limits them).
+  final List<PowerUp> types;
 }
 
 class BossConfig {

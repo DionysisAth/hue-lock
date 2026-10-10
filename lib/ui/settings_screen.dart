@@ -95,12 +95,14 @@ class SettingsScreen extends StatelessWidget {
                     style: text,
                   ),
                   subtitle: Text(
-                    'Leaderboards, achievements and cloud save',
+                    s.gameServices.lastCloudSave != null
+                        ? 'Progress saved to the cloud at '
+                              '${TimeOfDay.fromDateTime(s.gameServices.lastCloudSave!).format(context)}. '
+                              'Tap to sync now.'
+                        : 'Leaderboards, achievements and cloud save',
                     style: sub,
                   ),
-                  onTap: s.gameServices.signedIn
-                      ? null
-                      : () => s.gameServices.signIn(),
+                  onTap: s.syncCloud,
                 ),
               SwitchListTile(
                 title: Text('Colorblind mode', style: text),

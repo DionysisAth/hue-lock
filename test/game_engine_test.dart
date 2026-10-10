@@ -34,8 +34,8 @@ void main() {
     clearRounds(e, 150);
     expect(e.level, 150);
     expect(e.phase, isNot(GamePhase.dying));
-    expect(e.fever, isTrue);
     expect(e.multiplier, config.scoring.maxMultiplier);
+    expect(e.bestMultiplier, config.scoring.maxMultiplier);
     expect(events.whereType<MissEvent>(), isEmpty);
     final hits = events.whereType<HitEvent>().toList();
     expect(hits.every((h) => h.judgement.kind == HitKind.perfect), isTrue);
@@ -52,42 +52,37 @@ void main() {
     expect(events.whereType<WorldEvent>(), hasLength(e.world));
   });
 
-  test('Fever starts after the Perfect streak and ends on a Good', () {
+  test('the combo climbs every 3 Perfects, never speeds the pointer up, and '
+      'a Good resets it', () {
     final events = <GameEvent>[];
     final e = newEngine(events)..startRun(best: 0, seed: 2);
-    for (var i = 0; i < config.fever.perfectStreak; i++) {
+    final plain = newEngine([])..startRun(best: 0, seed: 2);
+    final step = config.scoring.perfectsPerMultiplierStep;
+    for (var i = 0; i < step * 3; i++) {
       tapTargetCenter(e);
+      tapTargetCenter(plain);
     }
-    expect(e.fever, isTrue);
-    expect(events.whereType<FeverEvent>().single.active, isTrue);
+    expect(e.multiplier, 4);
+    // No Fever: a long Perfect streak plays at the normal speed.
+    expect(e.round!.spec.pointerSpeed, plain.round!.spec.pointerSpeed);
 
-    // Fever doubles the points of the next Perfect.
     final before = e.score;
     tapTargetCenter(e);
     final last = events.whereType<HitEvent>().last;
-    expect(
-      last.points,
-      config.scoring.perfectPoints *
-          e.multiplier *
-          config.fever.pointsMultiplier,
-    );
+    expect(last.points, config.scoring.perfectPoints * e.multiplier);
     expect(e.score - before, greaterThanOrEqualTo(last.points));
 
-    // A Good (near the far edge) ends Fever and the combo.
+    // A Good (near the far edge) resets the combo.
     waitUntilPlaying(e);
     final t = e.round!.currentPrimary;
     final edge = wrapAngle(
       t.center + e.round!.spec.pointerDir * t.halfWidth * 0.9,
     );
     e.tap(e.time + timeUntil(e, edge));
-    expect(e.fever, isFalse);
     expect(e.multiplier, 1);
     expect(e.perfectStreak, 0);
-    // That Good was still scored under Fever.
-    expect(
-      events.whereType<HitEvent>().last.points,
-      config.scoring.goodPoints * config.fever.pointsMultiplier,
-    );
+    expect(e.bestMultiplier, 4);
+    expect(events.whereType<HitEvent>().last.points, config.scoring.goodPoints);
   });
 
   test('Perfects hit harder: effects, combo and streak events', () {

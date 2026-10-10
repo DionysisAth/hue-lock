@@ -9,8 +9,8 @@ import '../services/profile_store.dart';
 /// Google Play Games (Android) and Game Center (iOS): free leaderboards,
 /// achievements and cloud save, no server of our own.
 ///
-/// Disabled until the game is set up in Play Console / App Store Connect.
-/// To enable:
+/// Disabled until the game is set up in Play Console / App Store Connect
+/// (docs/RELEASE.md, section 4). To enable:
 /// 1. Android: put the Play Games project id in
 ///    android/app/src/main/res/values/games-ids.xml.
 /// 2. iOS: enable the Game Center capability in Xcode.
@@ -18,11 +18,32 @@ import '../services/profile_store.dart';
 abstract final class GameServiceIds {
   static const configured = false;
 
+  /// Endless best. Play Games and Game Center also keep daily and weekly
+  /// views of every leaderboard, which the weekly rank uses.
   static const endlessLeaderboard = (android: '', ios: 'hue_lock_endless');
   static const dailyLeaderboard = (android: '', ios: 'hue_lock_daily');
 
+  /// Total stars on the Levels map.
+  static const starsLeaderboard = (android: '', ios: 'hue_lock_stars');
+
   /// Achievement id per local achievement id (see achievementDefs).
   static const achievements = <String, ({String android, String ios})>{};
+}
+
+/// Where the player stands on a leaderboard this week, and the player just
+/// above (the one to beat next).
+class RankInfo {
+  const RankInfo({
+    required this.rank,
+    required this.score,
+    this.rivalName,
+    this.rivalScore,
+  });
+
+  final int rank;
+  final int score;
+  final String? rivalName;
+  final int? rivalScore;
 }
 
 class GameServices extends ChangeNotifier {
@@ -36,6 +57,12 @@ class GameServices extends ChangeNotifier {
   final bool enabled;
   bool signedIn = false;
   String? playerName;
+
+  /// This week's Endless rank (null until loaded, or when unranked).
+  RankInfo? weeklyRank;
+
+  /// Last successful cloud save.
+  DateTime? lastCloudSave;
 
   static const _saveName = 'hue_lock_profile';
 
@@ -52,11 +79,63 @@ class GameServices extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> submitEndless(int score) => _submit(
-    GameServiceIds.endlessLeaderboard.android,
-    GameServiceIds.endlessLeaderboard.ios,
-    score,
+  Future<void> submitEndless(int score) async {
+    await _submit(
+      GameServiceIds.endlessLeaderboard.android,
+      GameServiceIds.endlessLeaderboard.ios,
+      score,
+    );
+    await refreshRank();
+  }
+
+  Future<void> submitStars(int stars) => _submit(
+    GameServiceIds.starsLeaderboard.android,
+    GameServiceIds.starsLeaderboard.ios,
+    stars,
   );
+
+  /// Loads this week's Endless rank and the player just above. Network
+  /// work happens on the platform side; this is only called between runs.
+  Future<void> refreshRank() async {
+    if (!signedIn) return;
+    const board = GameServiceIds.endlessLeaderboard;
+    try {
+      final me = await gs.Leaderboards.getPlayerScoreObject(
+        androidLeaderboardID: board.android,
+        iOSLeaderboardID: board.ios,
+        scope: gs.PlayerScope.global,
+        timeScope: gs.TimeScope.week,
+      );
+      if (me == null || me.rank <= 0) return;
+      String? rivalName;
+      int? rivalScore;
+      if (me.rank > 1) {
+        final around = await gs.Leaderboards.loadLeaderboardScores(
+          androidLeaderboardID: board.android,
+          iOSLeaderboardID: board.ios,
+          playerCentered: true,
+          scope: gs.PlayerScope.global,
+          timeScope: gs.TimeScope.week,
+          maxResults: 5,
+        );
+        for (final s in around ?? const <gs.LeaderboardScoreData>[]) {
+          if (s.rank == me.rank - 1) {
+            rivalName = s.scoreHolder.displayName;
+            rivalScore = s.rawScore;
+          }
+        }
+      }
+      weeklyRank = RankInfo(
+        rank: me.rank,
+        score: me.rawScore,
+        rivalName: rivalName,
+        rivalScore: rivalScore,
+      );
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Rank lookup failed: $e');
+    }
+  }
 
   /// Play Games / Game Center daily leaderboards reset every day, so the
   /// Daily Challenge board only ever compares the same day's seed.
@@ -123,6 +202,8 @@ class GameServices extends ChangeNotifier {
         data: jsonEncode(p.toJson()),
         name: _saveName,
       );
+      lastCloudSave = DateTime.now();
+      notifyListeners();
     } catch (e) {
       debugPrint('Cloud save failed: $e');
     }

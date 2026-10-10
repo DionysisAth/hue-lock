@@ -58,12 +58,23 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      # Signed with the upload key once its secrets are set, so every test
+      # APK installs over the last one and Play Games sign-in accepts it
+      # (its SHA-1 is registered there). Until then: the debug key.
+      - name: Set up the upload key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: tool/ci/setup_upload_key.sh
       # Build the exact APK that gets published, so the emulator can test it.
       - name: Build release APK
         run: |
           # Test APK: always Google's test ads, so testers can tap them.
           flutter build apk --release --build-number ${{ github.run_number }} --dart-define=TEST_ADS=true
           cp build/app/outputs/flutter-apk/app-release.apk hue-lock.apk
+          rm -f android/app/upload-keystore.jks android/key.properties
       - name: Free memory for the emulator
         run: |
           (cd android && ./gradlew --stop) || true
@@ -126,28 +137,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          if [ -z "$KEYSTORE_BASE64" ]; then
-            # Exercise the signing setup with a throwaway key; not published.
-            echo "::notice::No upload key secrets yet: the AAB is signed with a throwaway key and not published."
-            KEYSTORE_PASSWORD=throwaway-$RANDOM$RANDOM
-            KEY_PASSWORD=$KEYSTORE_PASSWORD
-            KEY_ALIAS=upload
-            keytool -genkeypair -keystore android/app/upload-keystore.jks \
-              -storetype PKCS12 -keyalg RSA -keysize 2048 -validity 1 \
-              -alias upload -dname "CN=CI" \
-              -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD"
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
-            echo "signed=true" >> "$GITHUB_OUTPUT"
-          fi
-          {
-            echo "storeFile=upload-keystore.jks"
-            echo "storePassword=$KEYSTORE_PASSWORD"
-            echo "keyAlias=$KEY_ALIAS"
-            echo "keyPassword=$KEY_PASSWORD"
-          } > android/key.properties
+        run: tool/ci/setup_upload_key.sh --throwaway >> "$GITHUB_OUTPUT"
       - name: Build release bundle (real ads, upload-key signed)
         run: |
           flutter build appbundle --release --build-number ${{ github.run_number }}

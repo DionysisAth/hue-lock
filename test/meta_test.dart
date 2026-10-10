@@ -19,7 +19,7 @@ RunSummary run({
   int perfects = 0,
   int hits = 0,
   int bosses = 0,
-  int fevers = 0,
+  int combo = 1,
   int streak = 0,
   int world = 0,
   bool completed = false,
@@ -39,7 +39,7 @@ RunSummary run({
   mode: mode,
   hits: hits,
   bossesCleared: bosses,
-  fevers: fevers,
+  bestMultiplier: combo,
   completed: completed,
   stars: stars,
 );
@@ -106,7 +106,7 @@ void main() {
         perfects: 180,
         hits: 200,
         bosses: 8,
-        fevers: 10,
+        combo: 5,
         streak: 60,
         world: 9,
       );
@@ -295,32 +295,60 @@ void main() {
       e.tap(e.time + timeUntil(e, target.center));
     }
 
-    test('24 levels in 8 chapters, unlocked one by one', () {
-      expect(levels, hasLength(24));
-      expect(levels.map((l) => l.chapter).toSet(), hasLength(8));
-      expect(levels.map((l) => l.id).toSet(), hasLength(24));
+    test('60 levels in 12 chapters, unlocked one by one', () {
+      expect(levels, hasLength(60));
+      expect(levels.map((l) => l.chapter).toSet(), hasLength(12));
+      expect(levels.map((l) => l.id).toSet(), hasLength(60));
       expect(levelUnlocked(levels, {}, 0), isTrue);
       expect(levelUnlocked(levels, {}, 1), isFalse);
       expect(levelUnlocked(levels, {'L1': 1}, 1), isTrue);
+      // "Clear every level" matches the map.
+      final p = PlayerProfile()..stats = {Stat.levelsDone: levels.length};
+      expect(checkAchievements(p).map((a) => a.id), contains('levels_all'));
+    });
+
+    test('difficulty rises slowly and never past the speed cap', () {
+      for (var i = 1; i < levels.length; i++) {
+        final a = levels[i - 1].overrides['pointer'] as Map;
+        final b = levels[i].overrides['pointer'] as Map;
+        // Lessons start a little easier; otherwise only a small step up.
+        expect(
+          (b['baseSpeedDegPerSec'] as num) - (a['baseSpeedDegPerSec'] as num),
+          lessThanOrEqualTo(8),
+          reason: levels[i].id,
+        );
+      }
+      for (final l in levels) {
+        final p = l.overrides['pointer'] as Map;
+        final top =
+            (p['baseSpeedDegPerSec'] as num) +
+            (p['speedPerLevel'] as num) * l.targets;
+        expect(top, lessThanOrEqualTo(config.pointer.maxSpeed * 180 / 3.14159));
+      }
     });
 
     test('chapters open at a star count and pay out once', () {
       final chapters = chaptersOf(levels);
-      expect(chapters, hasLength(8));
+      expect(chapters, hasLength(12));
       expect(chapters.first.unlockStars, 0);
       for (var i = 1; i < chapters.length; i++) {
         expect(
           chapters[i].unlockStars,
           greaterThan(chapters[i - 1].unlockStars),
         );
-        // Reachable with stars from the chapters before it.
-        expect(chapters[i].unlockStars, lessThanOrEqualTo(i * 9));
+        // About half the stars before it: reachable without 3-starring.
+        final before = chapters.take(i).fold<int>(0, (a, c) => a + c.maxStars);
+        expect(chapters[i].unlockStars, lessThanOrEqualTo(before * 0.6));
       }
-      // Chapter 1 cleared with one star each: chapter 2 still needs stars.
-      final stars = {'L1': 1, 'L2': 1, 'L3': 1};
+      final ch1 = chapters[0].levels;
       final ch2 = chapters[1].levels.first.index;
+      // Chapter 1 cleared with one star each: chapter 2 still needs stars.
+      final stars = {for (final l in ch1) l.id: 1};
       expect(levelUnlocked(levels, stars, ch2), isFalse);
-      stars['L1'] = 3;
+      for (final l in ch1.take(2)) {
+        stars[l.id] = 3;
+      }
+      expect(totalStars(stars), greaterThanOrEqualTo(chapters[1].unlockStars));
       expect(levelUnlocked(levels, stars, ch2), isTrue);
 
       final p = PlayerProfile()..levelStars = Map.of(stars);
@@ -328,11 +356,15 @@ void main() {
       expect(first.map((r) => r.$1.id), ['C1']);
       expect(p.coins, chapters.first.reward.coins);
       expect(claimChapterRewards(p, levels), isEmpty, reason: 'once only');
-      p.levelStars.addAll({'L2': 3, 'L3': 3});
+      for (final l in ch1) {
+        p.levelStars[l.id] = 3;
+      }
       final bonus = claimChapterRewards(p, levels).single;
       expect(bonus.$2, chapterStarBonus);
       // Item rewards land in the collection.
-      p.levelStars.addAll({'L4': 1, 'L5': 1, 'L6': 1});
+      for (final l in chapters[1].levels) {
+        p.levelStars[l.id] = 1;
+      }
       claimChapterRewards(p, levels);
       expect(p.ownedBalls, contains(chapters[1].reward.ball));
     });

@@ -64,12 +64,17 @@ class AppServices {
       ..volume = p.musicVolume;
   }
 
-  /// Signs in to Play Games / Game Center and merges the cloud save.
-  Future<void> _syncCloud() async {
+  /// Signs in to Play Games / Game Center, merges the cloud save into this
+  /// device's progress (neither side loses anything) and saves the result
+  /// back, so every device converges.
+  Future<void> syncCloud() async {
     if (!gameServices.enabled) return;
-    await gameServices.signIn();
+    if (!gameServices.signedIn) await gameServices.signIn();
+    if (!gameServices.signedIn) return;
     final remote = await gameServices.loadProfile();
     if (remote != null) profile.update((p) => p.mergeFrom(remote));
+    await gameServices.saveProfile(profile.profile);
+    await gameServices.refreshRank();
   }
 
   /// Non-critical startup work, run after the first frame so the game is
@@ -104,7 +109,7 @@ class AppServices {
         },
       ),
       reminders.init(),
-      _syncCloud(),
+      syncCloud(),
       ads.init(),
     ]);
   }

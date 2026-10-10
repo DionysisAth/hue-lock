@@ -13,7 +13,7 @@ abstract final class Stat {
   static const rounds = 'rounds';
   static const perfects = 'perfects';
   static const bosses = 'bosses';
-  static const fevers = 'fevers';
+  static const bestCombo = 'bestCombo';
   static const powerUps = 'powerUps';
   static const notCleared = 'notCleared';
   static const splitCleared = 'splitCleared';
@@ -61,7 +61,7 @@ int xpForRun(RunSummary s) {
   return s.level * 2 +
       s.perfects +
       s.bossesCleared * 15 +
-      s.fevers * 5 +
+      (s.bestMultiplier - 1) * 3 +
       (s.completed ? 10 + s.stars * 5 : 0);
 }
 
@@ -108,7 +108,7 @@ enum MissionType {
   rounds('Clear {n} rounds'),
   perfects('Hit {n} Perfects'),
   bosses('Beat {n} boss rounds'),
-  fevers('Trigger Fever {n} times'),
+  combo('Reach combo x{n}', perRun: true),
   powerUps('Collect {n} power-ups'),
   notRounds('Clear {n} NOT rounds'),
   daily('Play the Daily Challenge {n} times'),
@@ -168,7 +168,7 @@ class Mission {
     MissionType.rounds => s.level,
     MissionType.perfects => s.perfects,
     MissionType.bosses => s.bossesCleared,
-    MissionType.fevers => s.fevers,
+    MissionType.combo => s.bestMultiplier,
     MissionType.powerUps => s.powerUps,
     MissionType.notRounds => s.notCleared,
     MissionType.daily => s.mode == RunMode.daily ? 1 : 0,
@@ -189,7 +189,7 @@ Mission _newMission(SeededRandom rng, int playerLevel, Set<MissionType> taken) {
     MissionType.rounds => 40 * tier,
     MissionType.perfects => 25 * tier,
     MissionType.bosses => tier < 3 ? 1 : 2,
-    MissionType.fevers => 1 + tier,
+    MissionType.combo => math.min(5, 2 + tier ~/ 2),
     MissionType.powerUps => 2 + tier,
     MissionType.notRounds => 4 + 3 * tier,
     MissionType.daily => 1 + tier ~/ 3,
@@ -358,10 +358,10 @@ final achievementDefs = <AchievementDef>[
     (p) => p.stat(Stat.bestStreak) >= 25,
   ),
   AchievementDef(
-    'fever_1',
-    'Feverish',
-    'Trigger Fever',
-    (p) => p.stat(Stat.fevers) >= 1,
+    'combo_5',
+    'Combo King',
+    'Reach combo x5',
+    (p) => p.stat(Stat.bestCombo) >= 5,
   ),
   AchievementDef(
     'boss_1',
@@ -421,7 +421,7 @@ final achievementDefs = <AchievementDef>[
     'levels_all',
     'Graduate',
     'Clear every level',
-    (p) => p.stat(Stat.levelsDone) >= 24,
+    (p) => p.stat(Stat.levelsDone) >= 60,
   ),
   AchievementDef(
     'level_10',
@@ -467,7 +467,7 @@ RunRewards applyRun(PlayerProfile p, RunSummary s, {int starsGained = 0}) {
   p.addStat(Stat.rounds, s.level);
   p.addStat(Stat.perfects, s.perfects);
   p.addStat(Stat.bosses, s.bossesCleared);
-  p.addStat(Stat.fevers, s.fevers);
+  p.maxStat(Stat.bestCombo, s.bestMultiplier);
   p.addStat(Stat.powerUps, s.powerUps);
   p.addStat(Stat.notCleared, s.notCleared);
   p.addStat(Stat.splitCleared, s.splitCleared);

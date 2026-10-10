@@ -130,7 +130,7 @@ List<LevelDef> parseLevels(String source) {
         'pointer': {
           'baseSpeedDegPerSec': d('speed', 120),
           'speedPerLevel': d('speedPerTarget', 2),
-          'maxSpeedDegPerSec': 330,
+          'maxSpeedDegPerSec': 270,
         },
         'zone': {
           'startSizeDeg': d('size', 52),
@@ -143,7 +143,11 @@ List<LevelDef> parseLevels(String source) {
           'every': (l['bossEvery'] as num?)?.toInt() ?? 0,
           'sequenceLength': bossLength,
         },
-        'powerUps': {'chance': d('powerUpChance', 0), 'minLevel': 1},
+        'powerUps': {
+          'chance': d('powerUpChance', 0),
+          'minLevel': 1,
+          if (l['powerUpTypes'] != null) 'types': l['powerUpTypes'],
+        },
         'coins': {'coinZoneChance': 0.0},
       };
       final level = LevelDef(

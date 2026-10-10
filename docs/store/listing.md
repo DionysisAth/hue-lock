@@ -37,8 +37,8 @@ To regenerate them:
 > over. Easy to learn, impossible to put down.
 >
 > **Chase the Perfect.** Hit the bright center of a zone for a PERFECT. Chain
-> them to build your combo, then five in a row sets off FEVER: double points,
-> a faster pointer and a screen full of color.
+> them to build your combo up to x5, while the music and the ring heat up
+> with you.
 >
 > **Rules that flip on you.**
 > - NOT rounds: hit any color *except* the ball's.
@@ -52,10 +52,12 @@ To regenerate them:
 >
 > **Ways to play**
 > - **Endless:** how far can you go? Stages change every 20 rounds.
-> - **Levels:** a map of 24 hand-made levels that teach every trick. Each
+> - **Levels:** a map of 60 levels in 12 chapters that teach every trick. Each
 >   level has three star goals; stars open new chapters and exclusive balls
 >   and rings.
 > - **Daily Challenge:** the same run for everyone, every day.
+> - **Leaderboards:** climb the weekly rankings on Google Play Games, and
+>   see exactly how many points it takes to pass the next player.
 > - **Zen:** no game over, just flow.
 > - **Duel:** send a friend a code. They play your exact run and try to beat
 >   your score.
@@ -95,7 +97,8 @@ need extra ad settings.
 
 ## Data safety form (Play)
 
-Answer for the app as it is now: ads on, Play Games not configured.
+Answer for the app with ads and Google Play Games (leaderboards and cloud
+save) turned on.
 
 **Does your app collect or share user data?** Yes. Google AdMob does.
 
@@ -112,9 +115,13 @@ Answer for the app as it is now: ads on, Play Games not configured.
   "provide a way to request deletion", since we hold no data ourselves.
 - **Purchases:** handled by Google Play Billing, nothing to declare.
 
-If you turn on Play Games later, add these and update the form:
-- **Game progress** (in-app activity: "Other actions")
-- **User IDs**
+Play Games adds, collected by Google Play Games (not by us) only for
+players who sign in:
+
+| Data type | Collected | Shared | Purpose | Optional? |
+|---|---|---|---|---|
+| Game progress (In-app activity: "Other actions") | Yes | No | App functionality | Yes |
+| User IDs (Play Games player id) | Yes | No | App functionality | Yes |
 
 ## App access, ads and other declarations
 

@@ -129,8 +129,8 @@ class _ChapterSection extends StatelessWidget {
     final color = HuePalette.standard[chapter.index % 4];
     // Alternate the winding direction per chapter.
     final xs = chapter.index.isEven
-        ? const [-0.55, 0.0, 0.55]
-        : const [0.55, 0.0, -0.55];
+        ? const [-0.5, 0.0, 0.5, 0.0]
+        : const [0.5, 0.0, -0.5, 0.0];
     return Column(
       children: [
         SizedBox(
@@ -338,11 +338,16 @@ class _PathPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (points.length < 2) return;
-    final path = Path()..moveTo(points.first.dx, points.first.dy);
+    // From under each node's name to the top of the next node, so the
+    // trail never runs through the stars and names.
+    final path = Path();
     for (var i = 1; i < points.length; i++) {
-      final a = points[i - 1], b = points[i];
+      final a = points[i - 1] + const Offset(0, 56);
+      final b = points[i] - const Offset(0, 33);
       final mid = (a.dy + b.dy) / 2;
-      path.cubicTo(a.dx, mid, b.dx, mid, b.dx, b.dy);
+      path
+        ..moveTo(a.dx, a.dy)
+        ..cubicTo(a.dx, mid, b.dx, mid, b.dx, b.dy);
     }
     canvas.drawPath(
       path,

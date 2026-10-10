@@ -111,6 +111,9 @@ class _GameScreenState extends State<GameScreen>
       engine.pause();
       _lastFrameStamp = null;
       if (state != AppLifecycleState.inactive) s.music.suspend();
+      if (state == AppLifecycleState.paused) {
+        s.gameServices.saveProfile(s.profile.profile);
+      }
     } else {
       s.music.resume();
     }
@@ -139,7 +142,7 @@ class _GameScreenState extends State<GameScreen>
     fx.locks.add(LockFlash(0, 0.5, 3, perfect: true));
     fx.texts.add(FloatingText('WARM', 1, huge: true));
     e
-      ..fever = true
+      ..multiplier = 5
       ..shield = true;
     try {
       for (final theme in ringThemes) {
@@ -219,14 +222,14 @@ class _GameScreenState extends State<GameScreen>
   }
 
   /// Music builds with the combo: pad and bass at the start, drums once
-  /// the run is going, the driving bass at combo x2 and the full mix in
-  /// Fever. A broken combo drops it back.
+  /// the run is going, the driving bass at combo x2 and the full mix from
+  /// combo x4. A broken combo drops it back.
   void _updateMusic() {
     final e = engine;
     final int intensity;
     if (e.phase == GamePhase.home || e.mode == RunMode.zen) {
       intensity = 1;
-    } else if (e.fever) {
+    } else if (e.multiplier >= 4) {
       intensity = 4;
     } else {
       final base = e.level >= 8 ? 2 : 1;
@@ -417,12 +420,6 @@ class _GameScreenState extends State<GameScreen>
       case StreakEvent():
         s.audio.play(Sfx.streak);
         s.haptics.celebrate();
-      case FeverEvent(:final active):
-        if (active) {
-          s.audio.play(Sfx.fever);
-          s.haptics.celebrate();
-        }
-        _updateMusic();
       case PowerUpEvent(:final powerUp):
         s.audio.play(Sfx.powerUp);
         s.analytics.log('power_up', {'type': powerUp.name});
@@ -482,6 +479,9 @@ class _GameScreenState extends State<GameScreen>
           };
           s.profile.update((p) {
             final after = recordLevelGoals(p, level.id, summary.goalsMet);
+            if (after > before) {
+              s.gameServices.submitStars(totalStars(p.levelStars));
+            }
             _starsGained = math.max(0, after - before);
             p.coins +=
                 summary.newCoins + (before == 0 ? 30 : 0) + 10 * _starsGained;
@@ -743,6 +743,42 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
+  /// The game-over "so close" goals: the player to pass on this week's
+  /// leaderboard first (when signed in), then what the run came closest to.
+  List<NextGoal> _goals() {
+    final summary = engine.lastSummary;
+    if (summary == null) return const [];
+    final rival = engine.mode == RunMode.endless
+        ? _rivalGoal(summary.score)
+        : null;
+    return [
+      ?rival,
+      ...nextGoals(
+        s.profile.profile,
+        summary,
+        config: s.config,
+        // The best before this run: the saved one already includes it.
+        best: engine.bestAtRunStart,
+        applied: !engine.runOpen,
+        max: rival == null ? 2 : 1,
+      ),
+    ];
+  }
+
+  NextGoal? _rivalGoal(int score) {
+    final rank = s.gameServices.weeklyRank;
+    final target = rank?.rivalScore;
+    if (rank == null || target == null) return null;
+    final best = math.max(score, rank.score);
+    if (best > target) return null;
+    final name = rank.rivalName ?? 'the next player';
+    return NextGoal(
+      '${target - score + 1} points to pass $name (#${rank.rank - 1})',
+      (score / (target + 1)).clamp(0.0, 1.0),
+      detail: 'you: #${rank.rank} this week',
+    );
+  }
+
   /// Stars still needed to open [next]'s chapter, or null if it's open.
   int? _gateFor(LevelDef next, PlayerProfile p) {
     final c = next.chapterDef;
@@ -847,6 +883,7 @@ class _GameScreenState extends State<GameScreen>
           onSettings: () => _open<void>(const SettingsScreen()),
           onHelp: () => _open<void>(const HowToPlayScreen()),
           onLeaderboards: s.gameServices.showLeaderboards,
+          weeklyRank: s.gameServices.weeklyRank,
         );
       case GamePhase.playing:
       case GamePhase.dying:
@@ -905,17 +942,7 @@ class _GameScreenState extends State<GameScreen>
           builder: (context, adReady, _) => GameOverOverlay(
             engine: engine,
             theme: theme,
-            goals: engine.lastSummary == null
-                ? const []
-                : nextGoals(
-                    p,
-                    engine.lastSummary!,
-                    config: s.config,
-                    // The best before this run: the saved one already
-                    // includes it.
-                    best: engine.bestAtRunStart,
-                    applied: !engine.runOpen,
-                  ),
+            goals: _goals(),
             levelGoalsBefore: _levelGoalsBefore,
             chapterRewards: _chapterRewards,
             nextLocked: level != null && level.index + 1 < levels.length

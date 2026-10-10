@@ -34,8 +34,8 @@ class HowToPlayScreen extends StatelessWidget {
         (
           Icons.local_fire_department_rounded,
           0,
-          'Fever',
-          '5 Perfects in a row: double points and a faster pointer. A Good ends it.',
+          'Combo',
+          'Every 3 Perfects in a row raise the multiplier, up to x5. A Good resets it.',
         ),
         (
           Icons.more_horiz_rounded,

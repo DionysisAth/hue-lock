@@ -6,7 +6,7 @@ intensities that stack layers:
   1: pad + sub bass
   2: + kick and offbeat hats
   3: + driving bass, clap, shaker
-  4: + 16th-note arpeggio (Fever)
+  4: + 16th-note arpeggio (top combo)
 All four have the same length and timing so the game can crossfade between
 them in place. Everything is synthesized (no licensing questions).
 

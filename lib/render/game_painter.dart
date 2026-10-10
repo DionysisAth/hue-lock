@@ -50,7 +50,7 @@ const comboHeat = [
 
 const _ink = Color(0xE6101018);
 const _gold = Color(0xFFFFD54A);
-const _feverColor = Color(0xFFFF7A2F);
+const _surgeColor = Color(0xFFFF7A2F);
 
 class GamePainter extends CustomPainter {
   GamePainter({
@@ -111,16 +111,12 @@ class GamePainter extends CustomPainter {
         engine.phase == GamePhase.dying || engine.phase == GamePhase.gameOver;
 
     // Halo + neutral ring: it heats up with the combo (x2 cyan .. x5
-    // pink) and cycles through hues in Fever. A wide faint stroke under a
-    // thin bright one stands in for a blur (no offscreen pass).
+    // pink). A wide faint stroke under a thin bright one stands in for a
+    // blur (no offscreen pass).
     final heat = engine.multiplier.clamp(1, comboHeat.length);
-    if (theme.outerHalo != null || engine.fever || heat >= 2) {
-      final halo = engine.fever
-          ? HSVColor.fromAHSV(1, (t * 120) % 360, 0.8, 1).toColor()
-          : heat >= 2
-          ? comboHeat[heat - 1]
-          : theme.outerHalo!;
-      final width = engine.fever ? 3.0 : (heat >= 2 ? 1.5 + 0.5 * heat : 2.0);
+    if (theme.outerHalo != null || heat >= 2) {
+      final halo = heat >= 2 ? comboHeat[heat - 1] : theme.outerHalo!;
+      final width = heat >= 2 ? 1.5 + 0.5 * heat : 2.0;
       final a = math.min(1.0, 0.35 + 0.4 * fx.glow + 0.08 * (heat - 1));
       final haloPaint = Paint()..style = PaintingStyle.stroke;
       canvas.drawCircle(
@@ -245,9 +241,7 @@ class GamePainter extends CustomPainter {
     }
     if (fx.edgeFlash > 0) {
       final rect = Offset.zero & size;
-      final color = engine.fever
-          ? HSVColor.fromAHSV(1, (t * 120) % 360, 0.85, 1).toColor()
-          : palette[fx.edgeColor];
+      final color = palette[fx.edgeColor];
       canvas.drawRect(
         rect,
         Paint()
@@ -325,20 +319,18 @@ class GamePainter extends CustomPainter {
           ).createShader(rect),
       );
     }
-    // Glow rises with combo and score; Fever cycles through hues.
+    // Glow rises with combo and score.
     final glow = fx.glow * theme.glowStrength;
     final round = engine.round;
     if (glow > 0.01 && round != null) {
-      final color = engine.fever
-          ? HSVColor.fromAHSV(1, (engine.time * 90) % 360, 0.85, 1).toColor()
-          : palette[round.spec.targetColor];
+      final color = palette[round.spec.targetColor];
       canvas.drawCircle(
         layout.center,
         layout.radius * 2.8,
         Paint()
           ..shader = RadialGradient(
             colors: [
-              color.withValues(alpha: (engine.fever ? 0.4 : 0.28) * glow),
+              color.withValues(alpha: 0.28 * glow),
               color.withValues(alpha: 0),
             ],
           ).createShader(glowRect),
@@ -379,22 +371,23 @@ class GamePainter extends CustomPainter {
     }
 
     if (theme.glowStrength > 0 || z.isBonus) {
-      canvas.drawArc(
-        rect,
-        start,
-        z.width,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = ringW * 1.25
-          ..color = (z.isBonus ? _gold : color).withValues(
-            alpha: alpha * (z.isBonus ? 0.6 : 0.35 * theme.glowStrength),
-          )
-          ..maskFilter = MaskFilter.blur(
-            BlurStyle.normal,
-            3 + 6 * math.max(theme.glowStrength, z.isBonus ? 0.6 : 0),
-          ),
-      );
+      // Soft glow as two wider, fainter strokes: a blur here would cost an
+      // offscreen pass per zone on every frame.
+      final glowColor = z.isBonus ? _gold : color;
+      final strength = z.isBonus ? 0.6 : 0.35 * theme.glowStrength;
+      final spread = math.max(theme.glowStrength, z.isBonus ? 0.6 : 0);
+      final glow = Paint()..style = PaintingStyle.stroke;
+      for (final (grow, k) in [(0.7, 0.35), (0.35, 0.55)]) {
+        canvas.drawArc(
+          rect,
+          start,
+          z.width,
+          false,
+          glow
+            ..strokeWidth = ringW * (1 + grow * spread)
+            ..color = glowColor.withValues(alpha: alpha * strength * k),
+        );
+      }
     }
     canvas.drawArc(
       rect,
@@ -478,10 +471,14 @@ class GamePainter extends CustomPainter {
     };
     canvas.drawCircle(
       p,
-      rad * 1.35,
+      rad * 1.6,
       Paint()
-        ..color = color.withValues(alpha: 0.35 * alpha)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, rad * 0.5),
+        ..shader = RadialGradient(
+          colors: [
+            color.withValues(alpha: 0.4 * alpha),
+            color.withValues(alpha: 0),
+          ],
+        ).createShader(Rect.fromCircle(center: p, radius: rad * 1.6)),
     );
     canvas.drawCircle(p, rad, Paint()..color = color.withValues(alpha: alpha));
     final ink = Paint()
@@ -576,20 +573,20 @@ class GamePainter extends CustomPainter {
     final color = dead
         ? const Color(0xFFFF4D4D)
         : surging
-        ? Color.lerp(theme.pointer, _feverColor, 0.55)!
+        ? Color.lerp(theme.pointer, _surgeColor, 0.55)!
         : theme.pointer;
     if (theme.glowStrength > 0 || surging) {
-      canvas.drawLine(
-        inner,
-        outer,
-        Paint()
-          ..strokeWidth = ringW * 0.55
-          ..strokeCap = StrokeCap.round
-          ..color = color.withValues(
-            alpha: 0.45 * math.max(theme.glowStrength, surging ? 0.8 : 0),
-          )
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-      );
+      final a = 0.45 * math.max(theme.glowStrength, surging ? 0.8 : 0);
+      final glow = Paint()..strokeCap = StrokeCap.round;
+      for (final (w, k) in [(0.85, 0.3), (0.55, 0.6)]) {
+        canvas.drawLine(
+          inner,
+          outer,
+          glow
+            ..strokeWidth = ringW * w
+            ..color = color.withValues(alpha: a * k),
+        );
+      }
     }
     canvas.drawLine(
       inner,
@@ -633,20 +630,24 @@ class GamePainter extends CustomPainter {
 
     final glowColor = colors.isEmpty
         ? theme.ringNeutral
-        : engine.fever
-        ? _feverColor
         : palette[colors.first];
-    if (theme.glowStrength > 0 || engine.fever) {
+    if (theme.glowStrength > 0) {
+      // A radial gradient instead of a blurred circle: same soft glow,
+      // no offscreen blur pass every frame.
+      final a = (0.25 + 0.35 * fx.glow) * theme.glowStrength;
+      final glowR = br * 1.6;
       canvas.drawCircle(
         c,
-        br * (engine.fever ? 1.45 : 1.25),
+        glowR,
         Paint()
-          ..color = glowColor.withValues(
-            alpha:
-                (0.25 + 0.35 * fx.glow) *
-                math.max(theme.glowStrength, engine.fever ? 0.9 : 0),
-          )
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, br * 0.35),
+          ..shader = RadialGradient(
+            colors: [
+              glowColor.withValues(alpha: a),
+              glowColor.withValues(alpha: a),
+              glowColor.withValues(alpha: 0),
+            ],
+            stops: const [0, 0.55, 1],
+          ).createShader(Rect.fromCircle(center: c, radius: glowR)),
       );
     }
 
@@ -971,9 +972,7 @@ class GamePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = ringW * 0.38
       ..strokeCap = StrokeCap.round
-      ..color = Colors.white.withValues(
-        alpha: (engine.fever ? 0.7 : 0.45) * pulse * alpha,
-      );
+      ..color = Colors.white.withValues(alpha: 0.45 * pulse * alpha);
     for (var i = 0; i < spec.zones.length; i++) {
       if (round.consumed.contains(i)) continue;
       final z = spec.zones[i];
@@ -1011,14 +1010,7 @@ class GamePainter extends CustomPainter {
     for (var i = 0; i < segments; i++) {
       final a0 = angle - dir * length * i / segments;
       final a1 = angle - dir * length * (i + 1) / segments;
-      final color = engine.fever
-          ? HSVColor.fromAHSV(
-              1,
-              (engine.time * 200 + i * 25) % 360,
-              0.8,
-              1,
-            ).toColor()
-          : tint;
+      final color = tint;
       canvas.drawArc(
         rect,
         _arcStart(math.min(a0, a1)),
@@ -1036,7 +1028,7 @@ class GamePainter extends CustomPainter {
   /// Slow drifting dust in the background; it speeds up with the combo.
   void _paintStars(Canvas canvas, Size size, Effects fx) {
     const count = 46;
-    final speed = 12 + 60 * fx.glow + (engine.fever ? 90 : 0);
+    final speed = 12 + 60 * fx.glow;
     final drift = engine.time * speed;
     final paint = Paint();
     final base = theme.dark ? Colors.white : theme.text;

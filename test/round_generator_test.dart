@@ -112,20 +112,20 @@ void main() {
     expect(two['bonus'], greaterThan(0));
     expect(two['reverse'], isNull);
 
-    expect(sample(14)['reverse'], 300);
+    expect(sample(18)['reverse'], 300);
 
-    final not = sample(20);
+    final not = sample(28);
     expect(not['colors'], greaterThanOrEqualTo(3));
     expect(not['inverted'], greaterThan(0));
     expect(not['rotate'], isNull);
 
-    final spin = sample(28);
+    final spin = sample(40);
     expect(spin['rotate'], greaterThan(0));
     expect(spin['ghost'], greaterThan(0));
     expect(spin['split'], isNull);
 
-    expect(sample(36)['split'], greaterThan(0));
-    expect(sample(44)['surge'], greaterThan(0));
+    expect(sample(50)['split'], greaterThan(0));
+    expect(sample(62)['surge'], greaterThan(0));
     expect(sample(15)['boss'], 300, reason: 'boss every 15 levels');
     expect(sample(45)['boss'], 300);
   });

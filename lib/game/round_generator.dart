@@ -54,7 +54,7 @@ class RoundGenerator {
 
   /// [pointerLocal] is the ring-local angle of the pointer when the round
   /// starts; [currentDir] is the pointer direction during the previous round.
-  /// [speedFactor] / [sizeFactor] apply Fever, Slow-mo and Wide.
+  /// [speedFactor] / [sizeFactor] apply perks, Slow-mo and Wide.
   RoundSpec next({
     required int level,
     required double pointerLocal,
@@ -150,7 +150,8 @@ class RoundGenerator {
       } else if (allowPowerUps &&
           level >= config.powerUps.minLevel &&
           _rng.chance(config.powerUps.chance)) {
-        powerUp = PowerUp.values[_rng.nextInt(PowerUp.values.length)];
+        final types = config.powerUps.types;
+        powerUp = types[_rng.nextInt(types.length)];
       }
     }
 

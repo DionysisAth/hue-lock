@@ -67,7 +67,7 @@ PlayerProfile _profile() => PlayerProfile()
     for (var i = 1; i <= 9; i++) 'L$i': i % 4 == 0 ? 2 : 3,
     'L10': 1,
   }
-  ..chapterRewards = {'C1', 'C1*', 'C2', 'C3'}
+  ..chapterRewards = {'C1', 'C1*', 'C2'}
   ..missions = [
     Mission(MissionType.perfects, 75, 80, progress: 58).toJson(),
     Mission(MissionType.bosses, 2, 80).toJson(),

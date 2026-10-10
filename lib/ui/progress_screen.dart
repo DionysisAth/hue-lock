@@ -232,7 +232,7 @@ class ProgressScreen extends StatelessWidget {
                       ('Perfects', p.stat(Stat.perfects)),
                       ('Best Perfect streak', p.stat(Stat.bestStreak)),
                       ('Bosses beaten', p.stat(Stat.bosses)),
-                      ('Fevers', p.stat(Stat.fevers)),
+                      ('Best combo', p.stat(Stat.bestCombo)),
                       ('Furthest stage', p.stat(Stat.bestStage)),
                       ('Duels won', p.stat(Stat.duelsWon)),
                     ])

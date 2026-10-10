@@ -56,8 +56,8 @@ void main() {
       expect(c.stages.first.fromLevel, 0);
       expect(c.stageFor(0).name, 'warmup');
       expect(c.stageFor(8).minColors, 2);
-      expect(c.stageFor(14).reverseChance, 1);
-      expect(c.stageFor(30).rotateChance, greaterThan(0));
+      expect(c.stageFor(16).reverseChance, 1);
+      expect(c.stageFor(36).rotateChance, greaterThan(0));
       expect(c.stageFor(500).name, 'chaos');
       expect(c.boss.isBossLevel(15), isTrue);
       expect(c.boss.isBossLevel(25), isFalse);
@@ -69,7 +69,7 @@ void main() {
         'pointer': {'baseSpeedDegPerSec': 200},
       });
       expect(c.pointer.baseSpeed, closeTo(200 * math.pi / 180, 1e-9));
-      expect(c.pointer.maxSpeed, closeTo(330 * math.pi / 180, 1e-9));
+      expect(c.pointer.maxSpeed, closeTo(270 * math.pi / 180, 1e-9));
     });
   });
 }

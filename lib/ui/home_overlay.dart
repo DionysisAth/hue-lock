@@ -4,6 +4,7 @@ import '../meta/progression.dart';
 import '../render/game_painter.dart';
 import '../render/palette.dart';
 import '../render/ring_themes.dart';
+import '../services/game_services.dart';
 import '../services/profile_store.dart';
 import 'hud.dart';
 import 'widgets.dart';
@@ -26,6 +27,7 @@ class HomeOverlay extends StatefulWidget {
     required this.onSettings,
     required this.onHelp,
     required this.onLeaderboards,
+    this.weeklyRank,
   });
 
   final RingTheme theme;
@@ -44,6 +46,9 @@ class HomeOverlay extends StatefulWidget {
   final VoidCallback onSettings;
   final VoidCallback onHelp;
   final VoidCallback onLeaderboards;
+
+  /// This week's Endless rank on Play Games / Game Center, once known.
+  final RankInfo? weeklyRank;
 
   @override
   State<HomeOverlay> createState() => _HomeOverlayState();
@@ -126,6 +131,16 @@ class _HomeOverlayState extends State<HomeOverlay>
                           'BEST ${p.bestScore}',
                           style: hudLabel(theme, size: 16),
                         ),
+                        if (widget.weeklyRank != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '#${widget.weeklyRank!.rank} THIS WEEK',
+                            style: hudLabel(
+                              theme,
+                              size: 13,
+                            ).copyWith(color: coinColor),
+                          ),
+                        ],
                       ],
                     ),
                   ),

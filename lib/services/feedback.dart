@@ -11,7 +11,6 @@ enum Sfx {
   coin,
   newBest,
   ui,
-  fever,
   powerUp,
   shield,
   stage,
@@ -40,7 +39,6 @@ class AudioService {
     'coin': 'audio/coin.wav',
     'newBest': 'audio/new_best.wav',
     'ui': 'audio/ui.wav',
-    'fever': 'audio/fever.wav',
     'powerUp': 'audio/power_up.wav',
     'shield': 'audio/shield.wav',
     'stage': 'audio/stage.wav',
@@ -205,7 +203,7 @@ class MusicService {
     }
   }
 
-  /// 0 = silent, 1..[levels] = quiet pad .. full Fever mix.
+  /// 0 = silent, 1..[levels] = quiet pad .. full mix (top combo).
   Future<void> setIntensity(int level) async {
     level = level.clamp(0, levels);
     _wanted = level;

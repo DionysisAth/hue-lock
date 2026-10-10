@@ -76,7 +76,7 @@ class LockFlash {
   double get t => (age / life).clamp(0.0, 1.0);
 }
 
-/// An expanding ring of light (Perfect hits, combo ups, Fever).
+/// An expanding ring of light (Perfect hits, combo ups).
 class Shockwave {
   Shockwave(
     this.x,
@@ -100,7 +100,7 @@ class Shockwave {
   double get t => (age / life).clamp(0.0, 1.0);
 }
 
-/// Big centered announcement ("STAGE 2", "FEVER!", "BOSS ROUND").
+/// Big centered announcement ("STAGE 2", "BOSS ROUND").
 class Announcement {
   Announcement(this.title, {this.subtitle, this.color = -1, this.life = 1.6});
 

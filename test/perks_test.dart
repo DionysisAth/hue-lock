@@ -102,9 +102,9 @@ void main() {
       e.perks
         ..add(Perk.chill)
         ..add(Perk.wide)
-        ..add(Perk.hot)
+        ..add(Perk.quick)
         ..add(Perk.magnet);
-      expect(e.feverGoal, config.fever.perfectStreak - 1);
+      expect(e.comboStep, config.scoring.perfectsPerMultiplierStep - 1);
       clearRounds(e, 3);
       final coins = e.coinsEarned;
       expect(
