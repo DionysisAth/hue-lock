@@ -376,85 +376,89 @@ class _LevelNode extends StatelessWidget {
   final Color color;
   final RingTheme theme;
 
+  Future<void> _open(BuildContext context) async {
+    final play = await showLevelIntro(
+      context,
+      level,
+      theme,
+      goalsMet: levelGoalsOf(Services.of(context).profile.profile, level.id),
+    );
+    if (play == true && context.mounted) Navigator.of(context).pop(level);
+  }
+
   @override
   Widget build(BuildContext context) {
     final cleared = stars > 0;
-    return Column(
-      children: [
-        Material(
-          shape: CircleBorder(
-            side: BorderSide(
-              color: unlocked ? color : color.withValues(alpha: 0.3),
-              width: current ? 4 : 2,
+    final onTap = unlocked ? () => _open(context) : null;
+    // The whole node (circle, stars and name) opens the level.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Column(
+        children: [
+          Material(
+            shape: CircleBorder(
+              side: BorderSide(
+                color: unlocked ? color : color.withValues(alpha: 0.3),
+                width: current ? 4 : 2,
+              ),
             ),
-          ),
-          // Opaque, so the path behind doesn't show through.
-          color: cleared
-              ? Color.alphaBlend(color.withValues(alpha: 0.32), theme.bgBottom)
-              : (unlocked ? theme.bgTop : theme.bgBottom),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: unlocked
-                ? () async {
-                    final play = await showLevelIntro(
-                      context,
-                      level,
-                      theme,
-                      goalsMet: levelGoalsOf(
-                        Services.of(context).profile.profile,
-                        level.id,
-                      ),
-                    );
-                    if (play == true && context.mounted) {
-                      Navigator.of(context).pop(level);
-                    }
-                  }
-                : null,
-            child: SizedBox(
-              width: 58,
-              height: 58,
-              child: Center(
-                child: unlocked
-                    ? Text(
-                        '${level.number}',
-                        style: TextStyle(
-                          color: theme.text,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
+            // Opaque, so the path behind doesn't show through.
+            color: cleared
+                ? Color.alphaBlend(
+                    color.withValues(alpha: 0.32),
+                    theme.bgBottom,
+                  )
+                : (unlocked ? theme.bgTop : theme.bgBottom),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onTap,
+              child: SizedBox(
+                width: 58,
+                height: 58,
+                child: Center(
+                  child: unlocked
+                      ? Text(
+                          '${level.number}',
+                          style: TextStyle(
+                            color: theme.text,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        )
+                      : Icon(
+                          Icons.lock_rounded,
+                          color: theme.subtleText,
+                          size: 22,
                         ),
-                      )
-                    : Icon(
-                        Icons.lock_rounded,
-                        color: theme.subtleText,
-                        size: 22,
-                      ),
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 3),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            for (var i = 0; i < 3; i++)
-              Icon(
-                i < stars ? Icons.star_rounded : Icons.star_outline_rounded,
-                size: 15,
-                color: i < stars ? coinColor : theme.subtleText,
-              ),
-          ],
-        ),
-        Text(
-          level.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: current && !cleared ? color : theme.subtleText,
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
+          const SizedBox(height: 3),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < 3; i++)
+                Icon(
+                  i < stars ? Icons.star_rounded : Icons.star_outline_rounded,
+                  size: 15,
+                  color: i < stars ? coinColor : theme.subtleText,
+                ),
+            ],
           ),
-        ),
-      ],
+          Text(
+            level.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: current && !cleared ? color : theme.subtleText,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

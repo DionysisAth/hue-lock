@@ -141,7 +141,8 @@ void _progressionTests() {
     expect(find.text('THE BASICS'), findsOneWidget);
     expect(find.text('CHAPTER 2'), findsOneWidget);
     expect(find.text('???'), findsWidgets, reason: 'locked chapters hide');
-    await tester.tap(find.text('1'));
+    // The level's name opens it too, not just its circle.
+    await tester.tap(find.text(s.levels.first.title));
     await _settle(tester);
     final l1 = s.levels.first;
     expect(find.text(l1.goals.first.text), findsOneWidget);
