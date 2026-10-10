@@ -64,7 +64,8 @@ class HowToPlayScreen extends StatelessWidget {
           Icons.psychology_rounded,
           2,
           'Boss',
-          'Every 25 rounds: watch the colors flash, then hit them in order.',
+          'Every 15 rounds: watch the colors flash, then hit them in order. '
+              'Beat it to pick a perk.',
         ),
       ],
     ),
@@ -126,6 +127,12 @@ class HowToPlayScreen extends StatelessWidget {
           'Yellow badge: bigger zones for 5 rounds.',
         ),
         (
+          Icons.auto_awesome_rounded,
+          3,
+          'Perks',
+          'After each boss, pick one of three bonuses for the rest of the run.',
+        ),
+        (
           Icons.monetization_on_rounded,
           2,
           'Coins',
@@ -146,7 +153,9 @@ class HowToPlayScreen extends StatelessWidget {
           Icons.school_rounded,
           3,
           'Levels',
-          'Short levels that teach each mechanic. Earn up to 3 stars.',
+          'Chapters that teach each mechanic. A star for clearing a level and '
+              'one for each of its two goals; stars open new chapters and '
+              'their rewards.',
         ),
         (
           Icons.today_rounded,

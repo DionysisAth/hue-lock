@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../app.dart';
 import '../game/game_engine.dart';
+import '../game/star_goals.dart';
 import '../meta/levels.dart';
 import '../meta/progression.dart';
 import '../render/game_painter.dart';
@@ -35,6 +37,11 @@ class GameOverOverlay extends StatelessWidget {
     this.onLevels,
     this.onLeaderboard,
     this.onExtraAttempt,
+    this.goals = const [],
+    this.levelGoalsBefore = 0,
+    this.chapterRewards = const [],
+    this.nextLocked,
+    this.rewardText,
   });
 
   final GameEngine engine;
@@ -61,6 +68,17 @@ class GameOverOverlay extends StatelessWidget {
   final VoidCallback? onLeaderboard;
   final VoidCallback? onExtraAttempt;
 
+  /// What the player is closest to next (Endless, Daily, duels).
+  final List<NextGoal> goals;
+
+  /// Level mode: goals met before this run, to mark the new ones.
+  final int levelGoalsBefore;
+  final List<(ChapterDef, ChapterReward)> chapterRewards;
+
+  /// Level mode: stars still needed to open the next level's chapter.
+  final int? nextLocked;
+  final String Function(ChapterReward reward)? rewardText;
+
   TextStyle _big(Color color, [double size = 26]) => TextStyle(
     color: color,
     fontSize: size,
@@ -76,11 +94,9 @@ class GameOverOverlay extends StatelessWidget {
         return [
           Text('LEVEL COMPLETE', style: _big(HuePalette.standard[3], 24)),
           const SizedBox(height: 6),
-          _Stars(stars: summary.stars),
-          const SizedBox(height: 4),
-          Text(
-            '${(summary.perfectRatio * 100).round()}% PERFECT',
-            style: hudLabel(theme, size: 12),
+          _Stars(
+            mask: levelGoalsBefore | summary.goalsMet,
+            fresh: summary.goalsMet & ~levelGoalsBefore,
           ),
         ];
       }
@@ -254,6 +270,21 @@ class GameOverOverlay extends StatelessWidget {
                             ],
                           ],
                         ),
+                      if (goals.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        IgnorePointer(
+                          child: Column(
+                            children: [
+                              for (final g in goals)
+                                _GoalRow(goal: g, theme: theme),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (mode == RunMode.level &&
+                          summary != null &&
+                          level != null)
+                        IgnorePointer(child: _levelDetails(summary)),
                       if (canContinue) ...[
                         const SizedBox(height: 14),
                         Wrap(
@@ -376,13 +407,18 @@ class GameOverOverlay extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           IgnorePointer(
-                            child: Text(
-                              canRetry ? 'TAP TO RETRY' : 'COME BACK TOMORROW',
-                              style: TextStyle(
-                                color: theme.text,
-                                fontSize: canRetry ? 18 : 15,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 3,
+                            child: _Pulse(
+                              enabled: canRetry,
+                              child: Text(
+                                canRetry
+                                    ? 'TAP TO RETRY'
+                                    : 'COME BACK TOMORROW',
+                                style: TextStyle(
+                                  color: theme.text,
+                                  fontSize: canRetry ? 18 : 15,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 3,
+                                ),
                               ),
                             ),
                           ),
@@ -399,12 +435,88 @@ class GameOverOverlay extends StatelessWidget {
       },
     );
   }
+
+  /// Level mode: the star goals (new ones marked), chapter rewards and
+  /// what the next chapter still needs.
+  Widget _levelDetails(RunSummary summary) {
+    final l = level!;
+    final have = levelGoalsBefore | summary.goalsMet;
+    final reward = rewardText;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        children: [
+          for (var i = 0; i < l.goals.length; i++)
+            _GoalCheck(
+              goal: l.goals[i],
+              value: l.goals[i].value(summary),
+              done: have & (1 << (i + 1)) != 0,
+              fresh: summary.goalsMet & ~levelGoalsBefore & (1 << (i + 1)) != 0,
+              theme: theme,
+            ),
+          for (final (c, r) in chapterRewards)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                r == chapterStarBonus
+                    ? 'ALL ${c.maxStars} STARS IN ${c.title.toUpperCase()}'
+                    : 'CHAPTER ${c.number} COMPLETE',
+                style: _big(coinColor, 15),
+              ),
+            ),
+          for (final (_, r) in chapterRewards)
+            if (reward != null)
+              Text(reward(r), style: hudLabel(theme, size: 12)),
+          if (summary.completed && nextLocked != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'EARN $nextLocked MORE '
+                '${nextLocked == 1 ? 'STAR' : 'STARS'} TO OPEN CHAPTER '
+                '${l.chapter + 2}',
+                style: hudLabel(theme, size: 12).copyWith(color: coinColor),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
-class _Stars extends StatelessWidget {
-  const _Stars({required this.stars});
+/// Three stars: earned ones filled; ones earned just now pop in one by one
+/// with a rising chime.
+class _Stars extends StatefulWidget {
+  const _Stars({required this.mask, required this.fresh});
 
-  final int stars;
+  /// Goals met (bit 0 = cleared), including earlier runs.
+  final int mask;
+
+  /// The bits of [mask] earned by this run.
+  final int fresh;
+
+  @override
+  State<_Stars> createState() => _StarsState();
+}
+
+class _StarsState extends State<_Stars> {
+  static const _step = 260;
+  bool _scheduled = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_scheduled) return;
+    _scheduled = true;
+    final audio = Services.of(context).audio;
+    var n = 0;
+    for (var i = 0; i < 3; i++) {
+      if (widget.fresh & (1 << i) == 0) continue;
+      final note = 1 + 2 * n++;
+      Future<void>.delayed(Duration(milliseconds: 250 + i * _step), () {
+        if (mounted) audio.playPerfect(note);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -412,19 +524,193 @@ class _Stars extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < 3; i++)
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: 1),
-            duration: Duration(milliseconds: 380 + i * 220),
-            curve: Curves.elasticOut,
-            builder: (context, v, child) =>
-                Transform.scale(scale: i < stars ? v : 1, child: child),
-            child: Icon(
-              i < stars ? Icons.star_rounded : Icons.star_outline_rounded,
-              size: 40,
-              color: i < stars ? coinColor : Colors.white24,
-            ),
+          _star(
+            have: widget.mask & (1 << i) != 0,
+            fresh: widget.fresh & (1 << i) != 0,
+            delay: 250 + i * _step,
           ),
       ],
     );
   }
+
+  Widget _star({required bool have, required bool fresh, required int delay}) {
+    final icon = Icon(
+      have ? Icons.star_rounded : Icons.star_outline_rounded,
+      size: 40,
+      color: have ? coinColor : Colors.white24,
+    );
+    if (!fresh) return icon;
+    final total = delay + 450;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: total),
+      curve: Interval(delay / total, 1, curve: Curves.elasticOut),
+      builder: (context, v, child) => Transform.scale(scale: v, child: child),
+      child: icon,
+    );
+  }
+}
+
+class _GoalCheck extends StatelessWidget {
+  const _GoalCheck({
+    required this.goal,
+    required this.value,
+    required this.done,
+    required this.fresh,
+    required this.theme,
+  });
+
+  final StarGoal goal;
+  final int value;
+  final bool done;
+  final bool fresh;
+  final RingTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = done ? coinColor : theme.subtleText;
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            done ? Icons.star_rounded : Icons.star_outline_rounded,
+            size: 18,
+            color: color,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            done ? goal.text : '${goal.text}  ($value/${goal.target})',
+            style: TextStyle(
+              color: done ? theme.text : theme.subtleText,
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+            ),
+          ),
+          if (fresh) ...[const SizedBox(width: 6), Text('NEW', style: _newTag)],
+        ],
+      ),
+    );
+  }
+}
+
+const _newTag = TextStyle(
+  color: coinColor,
+  fontWeight: FontWeight.w900,
+  fontSize: 12,
+  letterSpacing: 1.5,
+);
+
+/// One "so close" goal: text and a thin progress bar that fills in once.
+class _GoalRow extends StatelessWidget {
+  const _GoalRow({required this.goal, required this.theme});
+
+  final NextGoal goal;
+  final RingTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: SizedBox(
+        width: 280,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    goal.text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: theme.text,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                if (goal.detail != null)
+                  Text(
+                    goal.detail!,
+                    style: TextStyle(
+                      color: theme.subtleText,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: goal.fraction.clamp(0.0, 1.0)),
+              duration: const Duration(milliseconds: 700),
+              curve: Curves.easeOutCubic,
+              builder: (context, v, _) => Container(
+                height: 5,
+                alignment: Alignment.centerLeft,
+                decoration: BoxDecoration(
+                  color: theme.text.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: FractionallySizedBox(
+                  widthFactor: v,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: goal.fraction >= 0.8
+                          ? coinColor
+                          : HuePalette.standard[3],
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Gently pulses its child's opacity (an opacity layer only: the child is
+/// never repainted).
+class _Pulse extends StatefulWidget {
+  const _Pulse({required this.child, this.enabled = true});
+
+  final Widget child;
+  final bool enabled;
+
+  @override
+  State<_Pulse> createState() => _PulseState();
+}
+
+class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
+  late final _anim = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+    lowerBound: 0.55,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.enabled) {
+      _anim.repeat(reverse: true);
+    } else {
+      _anim.value = 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      FadeTransition(opacity: _anim, child: widget.child);
 }

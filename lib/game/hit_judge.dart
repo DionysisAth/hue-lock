@@ -61,6 +61,7 @@ class Judgement {
 /// miss. Otherwise any goal zone counts, with a small grace margin at its
 /// edges converted from time into angle using the pointer's [relSpeed] at
 /// that instant. Zones in [consumed] were used by earlier steps and are gone.
+/// [perfectScale] widens the Perfect window (the Steady Hand perk).
 Judgement judgeTap(
   RoundSpec spec,
   double localAngle,
@@ -68,6 +69,7 @@ Judgement judgeTap(
   int step = 0,
   Set<int> consumed = const {},
   double? relSpeed,
+  double perfectScale = 1,
 }) {
   final speed = relSpeed ?? spec.relativeSpeed.abs();
   final s = spec.steps[step];
@@ -93,13 +95,7 @@ Judgement judgeTap(
   }
   if (best != null) {
     final z = spec.zones[best];
-    final perfectHalf = math.min(
-      z.halfWidth,
-      math.max(
-        z.width * timing.perfectFraction / 2,
-        timing.perfectMinWindow * speed / 2,
-      ),
-    );
+    final perfectHalf = perfectHalfWidth(z, timing, speed, perfectScale);
     return Judgement(
       kind: bestDistance <= perfectHalf ? HitKind.perfect : HitKind.good,
       localAngle: localAngle,
@@ -134,3 +130,20 @@ Judgement _miss(
     early: early,
   );
 }
+
+/// Half the angular width of [z]'s Perfect window at relative pointer
+/// speed [speed]. Shared with the painter so the band drawn is the band
+/// judged.
+double perfectHalfWidth(
+  Zone z,
+  TimingConfig timing,
+  double speed, [
+  double scale = 1,
+]) => math.min(
+  z.halfWidth,
+  scale *
+      math.max(
+        z.width * timing.perfectFraction / 2,
+        timing.perfectMinWindow * speed / 2,
+      ),
+);

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hue_lock/core/angles.dart';
 import 'package:hue_lock/game/game_engine.dart';
+import 'package:hue_lock/game/star_goals.dart';
 import 'package:hue_lock/game/round.dart';
 import 'package:hue_lock/game/round_generator.dart';
 import 'package:hue_lock/meta/levels.dart';
@@ -267,6 +268,8 @@ void main() {
         ..xp = 1234
         ..tokens = 3
         ..levelStars = {'L1': 2}
+        ..levelGoals = {'L1': 5}
+        ..chapterRewards = {'C1'}
         ..stats = {Stat.duelsWon: 4}
         ..dailyDay = '2026-10-09'
         ..starterPack = true;
@@ -277,6 +280,21 @@ void main() {
   });
 
   group('levels', () {
+    /// A perfect player who also goes for gold zones when there is one.
+    void tapBestZone(GameEngine e) {
+      waitUntilPlaying(e);
+      final r = e.round!;
+      final goals = r.spec.steps[r.step].goals;
+      final gold = [
+        for (final g in goals)
+          if (r.spec.zones[g].isBonus && !r.consumed.contains(g))
+            r.spec.zones[g],
+      ];
+      final target = gold.isNotEmpty ? gold.first : r.currentPrimary;
+      advance(e, timeUntil(e, target.center) * 0.5);
+      e.tap(e.time + timeUntil(e, target.center));
+    }
+
     test('24 levels in 8 chapters, unlocked one by one', () {
       expect(levels, hasLength(24));
       expect(levels.map((l) => l.chapter).toSet(), hasLength(8));
@@ -284,6 +302,77 @@ void main() {
       expect(levelUnlocked(levels, {}, 0), isTrue);
       expect(levelUnlocked(levels, {}, 1), isFalse);
       expect(levelUnlocked(levels, {'L1': 1}, 1), isTrue);
+    });
+
+    test('chapters open at a star count and pay out once', () {
+      final chapters = chaptersOf(levels);
+      expect(chapters, hasLength(8));
+      expect(chapters.first.unlockStars, 0);
+      for (var i = 1; i < chapters.length; i++) {
+        expect(
+          chapters[i].unlockStars,
+          greaterThan(chapters[i - 1].unlockStars),
+        );
+        // Reachable with stars from the chapters before it.
+        expect(chapters[i].unlockStars, lessThanOrEqualTo(i * 9));
+      }
+      // Chapter 1 cleared with one star each: chapter 2 still needs stars.
+      final stars = {'L1': 1, 'L2': 1, 'L3': 1};
+      final ch2 = chapters[1].levels.first.index;
+      expect(levelUnlocked(levels, stars, ch2), isFalse);
+      stars['L1'] = 3;
+      expect(levelUnlocked(levels, stars, ch2), isTrue);
+
+      final p = PlayerProfile()..levelStars = Map.of(stars);
+      final first = claimChapterRewards(p, levels);
+      expect(first.map((r) => r.$1.id), ['C1']);
+      expect(p.coins, chapters.first.reward.coins);
+      expect(claimChapterRewards(p, levels), isEmpty, reason: 'once only');
+      p.levelStars.addAll({'L2': 3, 'L3': 3});
+      final bonus = claimChapterRewards(p, levels).single;
+      expect(bonus.$2, chapterStarBonus);
+      // Item rewards land in the collection.
+      p.levelStars.addAll({'L4': 1, 'L5': 1, 'L6': 1});
+      claimChapterRewards(p, levels);
+      expect(p.ownedBalls, contains(chapters[1].reward.ball));
+    });
+
+    test('star goals: each one is its own star and they add up', () {
+      final goals = [StarGoal.parse('perfects:5'), StarGoal.parse('streak:4')];
+      expect(goals.map((g) => '$g'), ['perfects:5', 'streak:4']);
+      expect(StarGoal.parse('shield').type, GoalType.shield);
+      expect(() => StarGoal.parse('nope:1'), throwsFormatException);
+
+      RunSummary done({int perfects = 0, int streak = 0}) => RunSummary(
+        score: 0,
+        level: 10,
+        perfects: perfects,
+        bestPerfectStreak: streak,
+        coinsEarned: 0,
+        newCoins: 0,
+        duration: 1,
+        stageName: '',
+        world: 0,
+        continuesUsed: 0,
+        seed: 1,
+        mode: RunMode.level,
+        completed: true,
+        starGoals: goals,
+      );
+      expect(done().stars, 1);
+      expect(done(perfects: 5).goalsMet, 0x3);
+      expect(done(streak: 4).goalsMet, 0x5);
+      expect(done(perfects: 9, streak: 9).stars, 3);
+
+      // Stars stay earned across runs: goal A one time, goal B the next.
+      final p = PlayerProfile();
+      expect(recordLevelGoals(p, 'L1', done(perfects: 5).goalsMet), 2);
+      expect(recordLevelGoals(p, 'L1', done(streak: 4).goalsMet), 3);
+      expect(recordLevelGoals(p, 'L1', done().goalsMet), 3);
+      // Old saves (a star count only) keep their stars.
+      final old = PlayerProfile()..levelStars = {'L2': 2};
+      expect(levelGoalsOf(old, 'L2'), 0x3);
+      expect(recordLevelGoals(old, 'L2', 0x5), 3);
     });
 
     test('every level generates only fair rounds', () {
@@ -326,12 +415,12 @@ void main() {
           mode: RunMode.level,
           config: l.configFrom(config),
           targetRounds: l.targets,
-          starThresholds: l.stars,
+          starGoals: l.goals,
         );
         final seen = <String>{};
         var guard = 0;
         while (e.phase != GamePhase.gameOver && guard++ < 400) {
-          tapTargetCenter(e);
+          tapBestZone(e);
           final spec = e.round?.spec;
           if (spec == null) continue;
           if (spec.kind == RoundKind.inverted) seen.add('inverted');
@@ -359,6 +448,56 @@ void main() {
           expect(seen, contains('boss'), reason: l.id);
         }
       }
+    });
+  });
+
+  group('next goals', () {
+    test('the closest goals come first; unapplied runs are projected', () {
+      final p = PlayerProfile()
+        ..missions = [
+          Mission(MissionType.perfects, 50, 60, progress: 40).toJson(),
+          Mission(MissionType.runs, 10, 60, progress: 1).toJson(),
+          Mission(MissionType.bosses, 1, 60).toJson(),
+        ];
+      final s = run(score: 90, level: 17, perfects: 8, hits: 17);
+      final goals = nextGoals(
+        p,
+        s,
+        config: config,
+        best: 100,
+        applied: false,
+        max: 10,
+      );
+      for (var i = 1; i < goals.length; i++) {
+        expect(goals[i].fraction, lessThanOrEqualTo(goals[i - 1].fraction));
+      }
+      final texts = goals.map((g) => g.text).toList();
+      // 48 / 50 Perfects is closer than 90 / 101 points.
+      expect(texts.take(2), [
+        'Mission: Hit 50 Perfects',
+        '11 more points for a new best',
+      ]);
+      expect(
+        goals.firstWhere((g) => g.text == 'Mission: Hit 50 Perfects').detail,
+        '48 / 50',
+      );
+      expect(texts, contains('3 rounds to Stage 2 · NEON REEF'));
+      expect(texts.any((t) => t.startsWith('Player level 2')), isTrue);
+      expect(
+        nextGoals(p, s, config: config, best: 100, applied: false),
+        hasLength(2),
+      );
+      // Zen and Levels have their own screens.
+      expect(
+        nextGoals(
+          p,
+          run(mode: RunMode.zen),
+          config: config,
+          best: 0,
+          applied: true,
+        ),
+        isEmpty,
+      );
     });
   });
 

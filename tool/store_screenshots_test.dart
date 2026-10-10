@@ -66,7 +66,13 @@ PlayerProfile _profile() => PlayerProfile()
   ..levelStars = {
     for (var i = 1; i <= 9; i++) 'L$i': i % 4 == 0 ? 2 : 3,
     'L10': 1,
-  };
+  }
+  ..chapterRewards = {'C1', 'C1*', 'C2', 'C3'}
+  ..missions = [
+    Mission(MissionType.perfects, 75, 80, progress: 58).toJson(),
+    Mission(MissionType.bosses, 2, 80).toJson(),
+    Mission(MissionType.runs, 9, 80, progress: 4).toJson(),
+  ];
 
 void main() {
   final shotKey = GlobalKey();
@@ -129,6 +135,10 @@ void main() {
 
   /// One perfectly timed tap through real frames.
   Future<void> perfect(WidgetTester tester, GameEngine e) async {
+    if (e.phase == GamePhase.perk) {
+      await tester.pump(const Duration(milliseconds: 500));
+      e.choosePerk(e.perkOffer!.first);
+    }
     var guard = 0;
     while (e.phase == GamePhase.countdown && guard++ < 400) {
       await tester.pump(const Duration(milliseconds: 16));
@@ -194,6 +204,20 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
     }
     await shoot(tester, '5_levels');
+  });
+
+  testWidgets('7 perks', (tester) async {
+    await start(tester);
+    final e = await run(tester, 5);
+    var guard = 0;
+    while (e.phase != GamePhase.perk && guard++ < 120) {
+      await perfect(tester, e);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await shoot(tester, '7_perks');
   });
 
   testWidgets('6 game over', (tester) async {

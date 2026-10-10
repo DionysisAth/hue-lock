@@ -17,6 +17,7 @@ enum Sfx {
   stage,
   boss,
   comboUp,
+  comboLost,
   streak,
 }
 
@@ -45,6 +46,7 @@ class AudioService {
     'stage': 'audio/stage.wav',
     'boss': 'audio/boss.wav',
     'comboUp': 'audio/combo_up.wav',
+    'comboLost': 'audio/combo_lost.wav',
     'streak': 'audio/streak.wav',
   };
 
@@ -128,81 +130,132 @@ class _SfxPool {
 }
 
 /// Adaptive background music: four stacked intensities of the same loop
-/// (see tool/generate_music.py). Changing intensity crossfades to the other
-/// track at the same position; [cut] silences it at once (on death).
+/// (see tool/generate_music.py). Each intensity has its own player, loaded
+/// once at startup, so a change is a seek and a short crossfade rather than
+/// a file load: every platform call runs on the UI thread on Android.
+/// Changes are spaced at least [minGap] apart so a flickering combo can't
+/// thrash the players; [cut] silences at once (on death).
 class MusicService {
   MusicService({this.enabled = true});
 
   /// False in tests / unsupported platforms: every call becomes a no-op.
   final bool enabled;
   static const levels = 4;
+  static const minGap = Duration(milliseconds: 1500);
 
-  bool muted = false;
+  bool _muted = false;
   double _volume = 0.6;
   double _tempo = 1;
+
+  /// The intensity playing now, and the one asked for (they differ while a
+  /// change waits for [minGap]).
   int _intensity = 0;
+  int _wanted = 0;
   int _generation = 0;
   bool _suspended = false;
-  final _players = <AudioPlayer>[];
-  int _active = 0;
-  Timer? _fade;
 
-  int get intensity => _intensity;
+  /// Player i plays intensity i + 1.
+  final _players = <AudioPlayer>[];
+  final _rates = <double>[];
+  Timer? _fade;
+  Timer? _pending;
+  final _sinceSwitch = Stopwatch();
+
+  int get intensity => _wanted;
+
+  bool get muted => _muted;
+
+  /// Settings are re-applied on every profile save; only real changes reach
+  /// the player.
+  set muted(bool m) {
+    if (m == _muted) return;
+    _muted = m;
+    _applyVolume();
+  }
 
   set volume(double v) {
+    if (v == _volume) return;
     _volume = v;
-    if (_players.isNotEmpty && _fade == null) {
-      _players[_active].setVolume(_effectiveVolume).ignore();
+    _applyVolume();
+  }
+
+  void _applyVolume() {
+    if (_intensity > 0 && _players.isNotEmpty && _fade == null) {
+      _players[_intensity - 1].setVolume(_effectiveVolume).ignore();
     }
   }
 
-  double get _effectiveVolume => muted ? 0 : _volume;
+  double get _effectiveVolume => _muted ? 0 : _volume;
 
   Future<void> init() async {
     if (!enabled) return;
     try {
-      for (var i = 0; i < 2; i++) {
+      for (var i = 1; i <= levels; i++) {
         // No position polling: we only read the position when switching.
         final p = AudioPlayer()..positionUpdater = null;
         await p.setReleaseMode(ReleaseMode.loop);
+        await p.setSource(AssetSource('audio/music_$i.wav'));
         _players.add(p);
+        _rates.add(1);
       }
-      final want = _intensity;
-      _intensity = 0;
-      if (want > 0) await setIntensity(want);
+      if (_wanted > 0) await _apply(_wanted);
     } catch (e) {
       debugPrint('Music unavailable: $e');
+      _players.clear();
     }
   }
 
   /// 0 = silent, 1..[levels] = quiet pad .. full Fever mix.
   Future<void> setIntensity(int level) async {
     level = level.clamp(0, levels);
-    if (level == _intensity) return;
-    _intensity = level;
+    _wanted = level;
     if (!enabled || _players.isEmpty) return;
+    if (level == _intensity) {
+      _pending?.cancel();
+      _pending = null;
+      return;
+    }
+    final wait = minGap - _sinceSwitch.elapsed;
+    if (level > 0 && _intensity > 0 && wait > Duration.zero) {
+      _pending ??= Timer(wait, () {
+        _pending = null;
+        setIntensity(_wanted);
+      });
+      return;
+    }
+    _pending?.cancel();
+    _pending = null;
+    await _apply(level);
+  }
+
+  Future<void> _apply(int level) async {
     final gen = ++_generation;
+    final old = _intensity;
+    _intensity = level;
+    _sinceSwitch
+      ..reset()
+      ..start();
     try {
       if (level == 0) {
         _fade?.cancel();
         _fade = null;
         for (final p in _players) {
-          await p.pause();
+          if (p.state == PlayerState.playing) await p.pause();
         }
         return;
       }
-      final from = _players[_active];
-      final to = _players[1 - _active];
-      final playing = from.state == PlayerState.playing;
+      final to = _players[level - 1];
+      final from = old > 0 ? _players[old - 1] : null;
+      final playing = from != null && from.state == PlayerState.playing;
       final position = playing ? await from.getCurrentPosition() : null;
-      await to.setSource(AssetSource('audio/music_$level.wav'));
-      await to.setPlaybackRate(_tempo);
+      if (_rates[level - 1] != _tempo) {
+        _rates[level - 1] = _tempo;
+        await to.setPlaybackRate(_tempo);
+      }
       await to.setVolume(playing ? 0 : _effectiveVolume);
       if (position != null) await to.seek(position);
-      if (gen != _generation) return;
-      if (_suspended) return;
+      if (gen != _generation || _suspended) return;
       await to.resume();
-      _active = 1 - _active;
       if (playing) _crossfade(from, to, gen);
     } catch (e) {
       debugPrint('Music switch failed: $e');
@@ -212,10 +265,14 @@ class MusicService {
   void _crossfade(AudioPlayer from, AudioPlayer to, int gen) {
     _fade?.cancel();
     var step = 0;
-    const steps = 8;
-    _fade = Timer.periodic(const Duration(milliseconds: 35), (timer) {
+    const steps = 6;
+    _fade = Timer.periodic(const Duration(milliseconds: 50), (timer) {
       if (gen != _generation) {
         timer.cancel();
+        // A newer switch took over: make sure this one isn't left playing.
+        if (_intensity == 0 || from != _players[_intensity - 1]) {
+          from.pause().ignore();
+        }
         return;
       }
       step++;
@@ -237,8 +294,11 @@ class MusicService {
   Future<void> setTempo(double rate) async {
     _tempo = rate;
     if (!enabled || _players.isEmpty || _intensity == 0) return;
+    final i = _intensity - 1;
+    if (_rates[i] == rate) return;
+    _rates[i] = rate;
     try {
-      await _players[_active].setPlaybackRate(rate);
+      await _players[i].setPlaybackRate(rate);
     } catch (e) {
       debugPrint('Music tempo failed: $e');
     }
@@ -255,8 +315,9 @@ class MusicService {
   Future<void> resume() async {
     _suspended = false;
     if (_intensity > 0 && _players.isNotEmpty) {
-      await _players[_active].setVolume(_effectiveVolume);
-      await _players[_active].resume();
+      final p = _players[_intensity - 1];
+      await p.setVolume(_effectiveVolume);
+      await p.resume();
     }
   }
 }

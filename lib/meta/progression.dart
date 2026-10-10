@@ -1,7 +1,10 @@
 import 'dart:math' as math;
 
+import '../config/game_config.dart';
 import '../core/seeded_random.dart';
 import '../game/game_engine.dart';
+import '../render/ball_skins.dart';
+import '../render/ring_themes.dart';
 import '../services/profile_store.dart';
 
 /// Lifetime counter keys (PlayerProfile.stats).
@@ -497,6 +500,112 @@ RunRewards applyRun(PlayerProfile p, RunSummary s, {int starsGained = 0}) {
     missions: missions,
     achievements: achievements,
   );
+}
+
+// ---------------------------------------------------------------------------
+// "So close": what the player is nearest to after a run
+// ---------------------------------------------------------------------------
+
+class NextGoal {
+  const NextGoal(this.text, this.fraction, {this.detail});
+
+  final String text;
+
+  /// How far along, 0..1.
+  final double fraction;
+
+  /// Short progress label ("42 / 50"), if any.
+  final String? detail;
+}
+
+/// What a player reached [s] is closest to: a new best, the next stage or
+/// boss, a mission, the next player-level unlock. Most nearly done first.
+/// [applied]: the run's XP and mission progress are already in [p].
+List<NextGoal> nextGoals(
+  PlayerProfile p,
+  RunSummary s, {
+  required GameConfig config,
+  required int best,
+  required bool applied,
+  int max = 2,
+}) {
+  if (s.mode == RunMode.zen || s.mode == RunMode.level) return const [];
+  final out = <NextGoal>[];
+
+  if ((s.mode == RunMode.endless || s.mode == RunMode.daily) &&
+      best > 0 &&
+      s.score <= best) {
+    out.add(
+      NextGoal(
+        best - s.score + 1 == 1
+            ? '1 more point for a new best'
+            : '${best - s.score + 1} more points for a new best',
+        s.score / (best + 1),
+        detail: '${s.score} / ${best + 1}',
+      ),
+    );
+  }
+
+  final stageEvery = config.worlds.every;
+  final bossEvery = config.boss.every;
+  if (s.mode == RunMode.endless && stageEvery > 0) {
+    final into = s.level % stageEvery;
+    final left = stageEvery - into;
+    out.add(
+      NextGoal(
+        '$left ${left == 1 ? 'round' : 'rounds'} to Stage ${s.world + 2} · '
+        '${worldName(s.world + 1)}',
+        into / stageEvery,
+      ),
+    );
+  }
+  if (bossEvery > 0 && s.level > 0) {
+    final into = s.level % bossEvery;
+    out.add(
+      into == 0
+          ? const NextGoal('Beat the boss to pick a perk', 0.97)
+          : NextGoal(
+              '${bossEvery - into} rounds to the next boss and a perk',
+              into / bossEvery,
+            ),
+    );
+  }
+
+  for (final m in missionsOf(p)) {
+    if (m.claimed || (applied && m.done)) continue;
+    final v = m.valueFrom(s, starsGained: 0);
+    final progress = applied
+        ? m.progress
+        : (m.type.perRun ? math.max(m.progress, v) : m.progress + v);
+    if (progress >= m.target) continue;
+    out.add(
+      NextGoal(
+        'Mission: ${m.title}',
+        progress / m.target,
+        detail: '$progress / ${m.target}',
+      ),
+    );
+  }
+
+  final xp = applied ? p.xp : p.xp + xpForRun(s);
+  final level = levelForXp(xp);
+  final (into, size) = levelProgress(xp);
+  final reward = rewardForLevel(level + 1);
+  final unlock = reward.ball != null
+      ? 'the ${ballSkinById(reward.ball!).name} ball'
+      : reward.theme != null
+      ? 'the ${ringThemeById(reward.theme!).name} ring'
+      : '${reward.coins} coins';
+  out.add(
+    NextGoal(
+      'Player level ${level + 1}: $unlock',
+      into / size,
+      detail: '${size - into} XP to go',
+    ),
+  );
+
+  out.sort((a, b) => b.fraction.compareTo(a.fraction));
+  return out.take(max).toList();
 }
 
 // ---------------------------------------------------------------------------

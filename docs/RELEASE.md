@@ -33,7 +33,7 @@ chat and they get wired in.
    - ads declaration
    - privacy policy URL
 
-   Upload `store/icon-512.png`, `store/feature-graphic.png` and the 6 images
+   Upload `store/icon-512.png`, `store/feature-graphic.png` and the 7 images
    in `store/screenshots/`.
 5. **Play App Signing.** Accept it when you create the first release. Google
    then keeps the real signing key, and your upload key can be reset if

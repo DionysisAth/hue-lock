@@ -28,11 +28,19 @@ void advance(GameEngine engine, double seconds) {
   }
 }
 
-/// Lets any countdown / boss preview run out.
+/// Lets any countdown / boss preview run out, picking the first perk on
+/// offer after a boss.
 void waitUntilPlaying(GameEngine engine) {
   var guard = 0;
-  while (engine.phase == GamePhase.countdown && guard++ < 1000) {
-    engine.tick(1 / 60);
+  while ((engine.phase == GamePhase.countdown ||
+          engine.phase == GamePhase.perk) &&
+      guard++ < 1000) {
+    if (engine.phase == GamePhase.perk) {
+      engine.tick(0.5);
+      engine.choosePerk(engine.perkOffer!.first);
+    } else {
+      engine.tick(1 / 60);
+    }
   }
 }
 

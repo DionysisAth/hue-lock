@@ -29,7 +29,14 @@ const ballSkins = <BallSkin>[
   BallSkin('gem', 'Gem', 500, _gem),
   // Starter Pack exclusive (price < 0: not sold for coins).
   BallSkin('crown', 'Crown', -1, _crown),
+  // Levels map chapter rewards.
+  BallSkin('bullseye', 'Bullseye', levelsReward, _bullseye),
+  BallSkin('swirl', 'Swirl', levelsReward, _swirl),
+  BallSkin('star', 'Superstar', levelsReward, _star),
 ];
+
+/// Price of items only given as Levels chapter rewards.
+const levelsReward = -2;
 
 BallSkin ballSkinById(String id) =>
     ballSkins.firstWhere((s) => s.id == id, orElse: () => ballSkins.first);
@@ -319,5 +326,58 @@ void _crown(Canvas canvas, Offset c, double r, Color color, double t) {
     Offset(c.dx - w / 2 + w * glint, base - r * 0.15),
     r * 0.05,
     _fill(const Color(0xDDFFFFFF)),
+  );
+}
+
+void _bullseye(Canvas canvas, Offset c, double r, Color color, double t) {
+  _shadedBall(canvas, c, r, color);
+  final ring = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = r * 0.13
+    ..color = const Color(0xEEFFFFFF);
+  canvas.drawCircle(c, r * 0.68, ring);
+  canvas.drawCircle(c, r * 0.3, ring);
+  canvas.drawCircle(c, r * 0.1, _fill(const Color(0xEEFFFFFF)));
+}
+
+void _swirl(Canvas canvas, Offset c, double r, Color color, double t) {
+  _shadedBall(canvas, c, r, color);
+  // A slowly turning spiral, built once per frame from a few arcs.
+  final p = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = r * 0.11
+    ..strokeCap = StrokeCap.round
+    ..color = _tint(color, 0.6);
+  final spin = t * 1.4;
+  for (var i = 0; i < 4; i++) {
+    final rr = r * (0.2 + 0.18 * i);
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: rr),
+      spin + i * 1.3,
+      math.pi * 0.9,
+      false,
+      p,
+    );
+  }
+}
+
+void _star(Canvas canvas, Offset c, double r, Color color, double t) {
+  _shadedBall(canvas, c, r, color);
+  final pulse = 1 + 0.06 * math.sin(t * 4);
+  final points = <Offset>[];
+  for (var i = 0; i < 10; i++) {
+    final a = -math.pi / 2 + i * math.pi / 5;
+    final d = r * (i.isEven ? 0.62 : 0.27) * pulse;
+    points.add(c + Offset(math.cos(a), math.sin(a)) * d);
+  }
+  final star = Path()..addPolygon(points, true);
+  canvas.drawPath(star, _fill(const Color(0xFFFFE680)));
+  canvas.drawPath(
+    star,
+    Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = r * 0.05
+      ..strokeJoin = StrokeJoin.round
+      ..color = const Color(0xFFB8860B),
   );
 }

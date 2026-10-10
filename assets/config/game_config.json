@@ -104,8 +104,8 @@
   },
 
   "boss": {
-    "_comment": "Memory round every N levels: watch the color sequence, then hit it in order.",
-    "every": 25,
+    "_comment": "Memory round every N levels: watch the color sequence, then hit it in order. Beating one in Endless, Daily or a duel offers a choice of three perks.",
+    "every": 15,
     "sequenceLength": [3, 4],
     "introMs": 1600,
     "previewPerColorMs": 1000,

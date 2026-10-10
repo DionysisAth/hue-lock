@@ -46,9 +46,15 @@ To regenerate them:
 > - Boss rounds: watch the sequence, then play it back.
 > - Ghost zones, a spinning ring, and a pointer that surges and reverses.
 >
+> **Build your run.** Beat a boss and pick one of three perks: a wider
+> Perfect window, a shield, a slower pointer, a combo saver, more coins...
+> Every run plays a little differently.
+>
 > **Ways to play**
 > - **Endless:** how far can you go? Stages change every 20 rounds.
-> - **Levels:** 24 hand-made levels that teach every trick. Earn 3 stars.
+> - **Levels:** a map of 24 hand-made levels that teach every trick. Each
+>   level has three star goals; stars open new chapters and exclusive balls
+>   and rings.
 > - **Daily Challenge:** the same run for everyone, every day.
 > - **Zen:** no game over, just flow.
 > - **Duel:** send a friend a code. They play your exact run and try to beat

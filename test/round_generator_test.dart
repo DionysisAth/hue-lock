@@ -126,8 +126,8 @@ void main() {
 
     expect(sample(36)['split'], greaterThan(0));
     expect(sample(44)['surge'], greaterThan(0));
-    expect(sample(25)['boss'], 300, reason: 'boss every 25 levels');
-    expect(sample(50)['boss'], 300);
+    expect(sample(15)['boss'], 300, reason: 'boss every 15 levels');
+    expect(sample(45)['boss'], 300);
   });
 
   test('pointer speeds up and zones shrink, with breather rounds', () {

@@ -12,6 +12,7 @@ import '../game/game_engine.dart';
 import '../game/hit_judge.dart';
 import '../meta/levels.dart';
 import '../meta/progression.dart';
+import '../services/profile_store.dart';
 import '../render/ball_skins.dart';
 import '../render/game_painter.dart';
 import '../render/palette.dart';
@@ -24,6 +25,7 @@ import 'how_to_play_screen.dart';
 import 'hud.dart';
 import 'levels_screen.dart';
 import 'mode_dialogs.dart';
+import 'perk_overlay.dart';
 import 'progress_screen.dart';
 import 'settings_screen.dart';
 import 'shop_screen.dart';
@@ -56,6 +58,12 @@ class _GameScreenState extends State<GameScreen>
   /// Level being played (Levels mode).
   LevelDef? _level;
   int _starsGained = 0;
+
+  /// Level mode: goals met on this level before the last run (bit mask).
+  int _levelGoalsBefore = 0;
+
+  /// Level mode: chapter rewards the last run unlocked.
+  List<(ChapterDef, ChapterReward)> _chapterRewards = const [];
 
   /// Short messages (mission done, achievement, level up) shown at the top.
   final _toasts = <String>[];
@@ -172,6 +180,23 @@ class _GameScreenState extends State<GameScreen>
           );
         }
       }
+      // Combo breaks happen mid-run too.
+      TextSprites.get(
+        'COMBO LOST',
+        color: theme.text,
+        fontSize: 20,
+        glow: theme.dark ? 12 : 0,
+        pixelRatio: dpr,
+      );
+      for (var m = 2; m < s.config.scoring.maxMultiplier; m++) {
+        TextSprites.get(
+          'COMBO SAVED x$m',
+          color: palette[2],
+          fontSize: 20,
+          glow: theme.dark ? 12 : 0,
+          pixelRatio: dpr,
+        );
+      }
     } catch (err) {
       debugPrint('Effect warm-up failed: $err');
     }
@@ -193,7 +218,9 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
-  /// Music builds with the run: pad at the start, full mix in Fever.
+  /// Music builds with the combo: pad and bass at the start, drums once
+  /// the run is going, the driving bass at combo x2 and the full mix in
+  /// Fever. A broken combo drops it back.
   void _updateMusic() {
     final e = engine;
     final int intensity;
@@ -201,12 +228,9 @@ class _GameScreenState extends State<GameScreen>
       intensity = 1;
     } else if (e.fever) {
       intensity = 4;
-    } else if (e.level >= 30) {
-      intensity = 3;
-    } else if (e.level >= 8) {
-      intensity = 2;
     } else {
-      intensity = 1;
+      final base = e.level >= 8 ? 2 : 1;
+      intensity = math.min(3, base + (e.multiplier >= 2 ? 1 : 0));
     }
     s.music.setIntensity(intensity);
   }
@@ -260,6 +284,7 @@ class _GameScreenState extends State<GameScreen>
         if (engine.canRestart && _canRetry) _restart();
       case GamePhase.dying:
       case GamePhase.countdown:
+      case GamePhase.perk:
         break;
     }
   }
@@ -316,13 +341,15 @@ class _GameScreenState extends State<GameScreen>
   void _startLevel(LevelDef level) {
     _prepare();
     _level = level;
+    _levelGoalsBefore = levelGoalsOf(s.profile.profile, level.id);
+    _chapterRewards = const [];
     engine.startRun(
       best: 0,
       seed: level.seed,
       mode: RunMode.level,
       config: level.configFrom(s.config),
       targetRounds: level.targets,
-      starThresholds: level.stars,
+      starGoals: level.goals,
     );
   }
 
@@ -378,6 +405,15 @@ class _GameScreenState extends State<GameScreen>
         s.haptics.celebrate();
       case ComboUpEvent():
         s.audio.play(Sfx.comboUp);
+      case ComboLostEvent():
+        s.audio.play(Sfx.comboLost);
+        _updateMusic();
+      case PerkOfferEvent():
+        s.haptics.celebrate();
+      case PerkChosenEvent(:final perk):
+        s.audio.play(Sfx.powerUp);
+        s.haptics.hit();
+        s.analytics.log('perk', {'perk': perk.name, 'level': engine.level});
       case StreakEvent():
         s.audio.play(Sfx.streak);
         s.haptics.celebrate();
@@ -437,16 +473,36 @@ class _GameScreenState extends State<GameScreen>
         s.haptics.celebrate();
         final level = _level;
         if (level != null) {
-          final before = s.profile.profile.levelStars[level.id] ?? 0;
-          _starsGained = math.max(0, summary.stars - before);
+          final p0 = s.profile.profile;
+          final before = p0.levelStars[level.id] ?? 0;
+          _levelGoalsBefore = levelGoalsOf(p0, level.id);
+          final openBefore = {
+            for (final c in chaptersOf(s.levels))
+              if (chapterOpen(c, p0.levelStars)) c.index,
+          };
           s.profile.update((p) {
-            if (summary.stars > before) p.levelStars[level.id] = summary.stars;
+            final after = recordLevelGoals(p, level.id, summary.goalsMet);
+            _starsGained = math.max(0, after - before);
             p.coins +=
                 summary.newCoins + (before == 0 ? 30 : 0) + 10 * _starsGained;
             p.stats[Stat.levelsDone] = p.levelStars.values
                 .where((v) => v > 0)
                 .length;
+            _chapterRewards = claimChapterRewards(p, s.levels);
           });
+          for (final (c, r) in _chapterRewards) {
+            _toast(
+              r == chapterStarBonus
+                  ? 'Every star in ${c.title}! ${_rewardText(r)}'
+                  : 'Chapter ${c.number} complete! ${_rewardText(r)}',
+            );
+          }
+          for (final c in chaptersOf(s.levels)) {
+            if (!openBefore.contains(c.index) &&
+                chapterOpen(c, s.profile.profile.levelStars)) {
+              _toast('Chapter ${c.number} unlocked: ${c.title}');
+            }
+          }
         }
         s.analytics.log('level_complete', {
           'level': level?.number,
@@ -464,6 +520,13 @@ class _GameScreenState extends State<GameScreen>
         _updateMusic();
     }
   }
+
+  String _rewardText(ChapterReward r) => [
+    if (r.coins > 0) '+${r.coins} coins',
+    if (r.tokens > 0) '+${r.tokens} token${r.tokens == 1 ? '' : 's'}',
+    if (r.ball != null) '${ballSkinById(r.ball!).name} ball',
+    if (r.theme != null) '${ringThemeById(r.theme!).name} ring',
+  ].join(', ');
 
   void _onRunFinished(RunSummary summary) {
     late RunRewards rewards;
@@ -680,6 +743,13 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
+  /// Stars still needed to open [next]'s chapter, or null if it's open.
+  int? _gateFor(LevelDef next, PlayerProfile p) {
+    final c = next.chapterDef;
+    if (chapterOpen(c, p.levelStars)) return null;
+    return c.unlockStars - totalStars(p.levelStars);
+  }
+
   bool get _progressBadge {
     final p = s.profile.profile;
     return canClaimDailyReward(p, DateTime.now()) ||
@@ -781,6 +851,21 @@ class _GameScreenState extends State<GameScreen>
       case GamePhase.playing:
       case GamePhase.dying:
         return Hud(engine: engine, theme: theme, level: _level);
+      case GamePhase.perk:
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: Hud(engine: engine, theme: theme, level: _level),
+            ),
+            Positioned.fill(
+              child: PerkOverlay(
+                engine: engine,
+                theme: theme,
+                onChoose: engine.choosePerk,
+              ),
+            ),
+          ],
+        );
       case GamePhase.countdown:
         return Stack(
           children: [
@@ -820,6 +905,23 @@ class _GameScreenState extends State<GameScreen>
           builder: (context, adReady, _) => GameOverOverlay(
             engine: engine,
             theme: theme,
+            goals: engine.lastSummary == null
+                ? const []
+                : nextGoals(
+                    p,
+                    engine.lastSummary!,
+                    config: s.config,
+                    // The best before this run: the saved one already
+                    // includes it.
+                    best: engine.bestAtRunStart,
+                    applied: !engine.runOpen,
+                  ),
+            levelGoalsBefore: _levelGoalsBefore,
+            chapterRewards: _chapterRewards,
+            nextLocked: level != null && level.index + 1 < levels.length
+                ? _gateFor(levels[level.index + 1], p)
+                : null,
+            rewardText: _rewardText,
             best: mode == RunMode.daily ? p.dailyBest : p.bestScore,
             coins: p.coins,
             tokens: p.tokens,

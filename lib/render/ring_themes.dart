@@ -87,6 +87,35 @@ const ringThemes = <RingTheme>[
     zoneOutline: Color(0x6634264A),
     dark: false,
   ),
+  // Levels map chapter rewards (price -2: not sold).
+  RingTheme(
+    id: 'sunset',
+    name: 'Sunset',
+    price: -2,
+    bgTop: Color(0xFF3A1240),
+    bgBottom: Color(0xFF120618),
+    ringNeutral: Color(0xFF4A2A52),
+    pointer: Color(0xFFFFF1D6),
+    text: Color(0xFFFFF1D6),
+    subtleText: Color(0xFFFFA97A),
+    glowStrength: 0.8,
+    ringWidth: 0.14,
+    outerHalo: Color(0xFFFF8A4C),
+  ),
+  RingTheme(
+    id: 'ocean',
+    name: 'Deep Sea',
+    price: -2,
+    bgTop: Color(0xFF06324A),
+    bgBottom: Color(0xFF020F1A),
+    ringNeutral: Color(0xFF1C4560),
+    pointer: Color(0xFFE0FBFF),
+    text: Color(0xFFE0FBFF),
+    subtleText: Color(0xFF7FC8E0),
+    glowStrength: 0.75,
+    ringWidth: 0.16,
+    outerHalo: Color(0xFF3DE0FF),
+  ),
 ];
 
 RingTheme ringThemeById(String id) =>

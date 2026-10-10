@@ -3,10 +3,14 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../game/game_engine.dart';
+import '../game/round.dart';
+import '../game/star_goals.dart';
 import '../meta/levels.dart';
 import '../meta/progression.dart';
 import '../render/palette.dart';
 import '../render/ring_themes.dart';
+import 'perk_overlay.dart';
+import 'widgets.dart';
 
 TextStyle hudLabel(RingTheme theme, {double size = 14}) => TextStyle(
   color: theme.subtleText,
@@ -98,21 +102,59 @@ class Hud extends StatelessWidget {
           icon: Icons.open_in_full_rounded,
           color: HuePalette.standard[2],
         ),
+      if (!e.perks.isEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 5),
+          child: PerkIcons(perks: e.perks, color: theme.subtleText),
+        ),
     ];
-    final zen = e.mode == RunMode.zen;
     final target = e.targetRounds;
+    final milestone = e.mode == RunMode.zen
+        ? null
+        : target != null
+        ? ('${e.level} / $target', e.level / target, HuePalette.standard[3])
+        : _milestone(e);
+    final zen = e.mode == RunMode.zen;
     return IgnorePointer(
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.only(top: 18),
           child: Column(
             children: [
-              Text(_modeLine(), style: hudLabel(theme, size: 12)),
-              const SizedBox(height: 4),
+              // Mode line, with what the run heads for next (boss / stage)
+              // and a hairline progress bar toward it: two extra pixels
+              // of height, so the HUD stays clear of the ring.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text.rich(
+                  TextSpan(
+                    text: _modeLine(),
+                    children: [
+                      if (milestone != null)
+                        TextSpan(
+                          text: '  ·  ${milestone.$1}',
+                          style: TextStyle(color: milestone.$3),
+                        ),
+                    ],
+                  ),
+                  style: hudLabel(theme, size: 12),
+                ),
+              ),
+              if (milestone != null) ...[
+                const SizedBox(height: 3),
+                _Bar(
+                  value: milestone.$2,
+                  color: milestone.$3,
+                  theme: theme,
+                  width: 120,
+                  height: 2,
+                ),
+              ] else
+                const SizedBox(height: 4),
               AnimatedScore(score: zen ? e.hits : e.score, theme: theme),
               const SizedBox(height: 6),
               if (target != null)
-                _LevelProgress(done: e.level, target: target, theme: theme)
+                _LiveGoals(engine: e, theme: theme)
               else if (zen)
                 Text('HITS', style: hudLabel(theme))
               else if (e.mode == RunMode.duel)
@@ -123,16 +165,11 @@ class Hud extends StatelessWidget {
                   style: hudLabel(theme),
                 )
               else
-                Text(
-                  e.newBestReached
-                      ? 'NEW BEST'
-                      : 'BEST ${math.max(e.bestAtRunStart, e.score)}',
-                  style: hudLabel(theme),
-                ),
+                _BestLine(engine: e, theme: theme),
               const SizedBox(height: 8),
               FeverMeter(
                 streak: e.perfectStreak,
-                goal: e.config.fever.perfectStreak,
+                goal: e.feverGoal,
                 fever: e.fever,
                 theme: theme,
               ),
@@ -151,36 +188,138 @@ class Hud extends StatelessWidget {
   }
 }
 
-class _LevelProgress extends StatelessWidget {
-  const _LevelProgress({
-    required this.done,
-    required this.target,
-    required this.theme,
-  });
+/// "BEST 248", turning gold with the gap to close once it's near.
+class _BestLine extends StatelessWidget {
+  const _BestLine({required this.engine, required this.theme});
 
-  final int done;
-  final int target;
+  final GameEngine engine;
   final RingTheme theme;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text('$done / $target', style: hudLabel(theme)),
-        const SizedBox(height: 4),
-        SizedBox(
-          width: 140,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: target == 0 ? 0 : done / target,
-              minHeight: 5,
-              color: HuePalette.standard[3],
-              backgroundColor: theme.text.withValues(alpha: 0.14),
-            ),
+    final e = engine;
+    final best = e.bestAtRunStart;
+    if (e.newBestReached) {
+      return Text(
+        'NEW BEST',
+        style: hudLabel(theme).copyWith(color: coinColor),
+      );
+    }
+    final gap = best - e.score + 1;
+    if (best > 0 && e.score > 0 && gap <= math.max(10, best * 0.2)) {
+      return Text(
+        '$gap TO BEAT YOUR BEST',
+        style: hudLabel(theme).copyWith(color: coinColor),
+      );
+    }
+    return Text('BEST $best', style: hudLabel(theme));
+  }
+}
+
+/// The next thing a run is heading for: the next boss (and its perk) or
+/// the next stage, whichever comes first, as (label, progress, color).
+(String, double, Color)? _milestone(GameEngine e) {
+  final level = e.level;
+  final bossEvery = e.config.boss.every;
+  final stageEvery = e.config.worlds.every;
+  if (e.round?.spec.kind == RoundKind.boss) {
+    return ('BOSS ROUND', 1, HuePalette.standard[0]);
+  }
+  if (bossEvery <= 0) return null;
+  final toBoss = bossEvery - level % bossEvery;
+  final toStage = e.mode == RunMode.endless && stageEvery > 0
+      ? stageEvery - level % stageEvery
+      : toBoss + 1;
+  if (toBoss <= toStage) {
+    return (
+      toBoss == 1 ? 'BOSS NEXT' : 'BOSS IN $toBoss',
+      1 - toBoss / bossEvery,
+      HuePalette.standard[0],
+    );
+  }
+  return (
+    'STAGE ${e.world + 2} IN $toStage',
+    1 - toStage / stageEvery,
+    HuePalette.standard[3],
+  );
+}
+
+/// A thin static progress bar (no animation, nothing to repaint).
+class _Bar extends StatelessWidget {
+  const _Bar({
+    required this.value,
+    required this.color,
+    required this.theme,
+    this.width = 140,
+    this.height = 4,
+  });
+
+  final double value;
+  final Color color;
+  final RingTheme theme;
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      alignment: Alignment.centerLeft,
+      decoration: BoxDecoration(
+        color: theme.text.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: FractionallySizedBox(
+        widthFactor: value.clamp(0.0, 1.0),
+        child: Container(
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
           ),
         ),
-      ],
+      ),
+    );
+  }
+}
+
+/// Level mode: the star goals with live progress, on one line.
+class _LiveGoals extends StatelessWidget {
+  const _LiveGoals({required this.engine, required this.theme});
+
+  final GameEngine engine;
+  final RingTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final goals = engine.starGoals;
+    if (goals.isEmpty) return const SizedBox.shrink();
+    final now = engine.liveSummary;
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final g in goals) ...[
+            if (g != goals.first) const SizedBox(width: 14),
+            Icon(
+              g.met(now) ? Icons.star_rounded : Icons.star_outline_rounded,
+              size: 14,
+              color: g.met(now) ? coinColor : theme.subtleText,
+            ),
+            const SizedBox(width: 3),
+            Text(
+              g.type == GoalType.shield
+                  ? g.shortText
+                  : '${g.shortText} ${math.min(g.value(now), g.target)}/${g.target}',
+              style: hudLabel(theme, size: 10).copyWith(
+                letterSpacing: 1,
+                color: g.met(now) ? coinColor : theme.subtleText,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

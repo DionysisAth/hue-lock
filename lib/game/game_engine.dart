@@ -6,8 +6,10 @@ import '../config/game_config.dart';
 import '../core/angles.dart';
 import 'effects.dart';
 import 'hit_judge.dart';
+import 'perks.dart';
 import 'round.dart';
 import 'round_generator.dart';
+import 'star_goals.dart';
 
 enum GamePhase {
   /// Home screen; the ring idles in the background.
@@ -21,6 +23,9 @@ enum GamePhase {
   /// The round is frozen: "3-2-1" after a continue / app pause, or the
   /// color sequence preview before a boss round.
   countdown,
+
+  /// A boss was just beaten: the run waits for the player to pick a perk.
+  perk,
 }
 
 /// Names of the stages a run travels through (one every
@@ -139,6 +144,23 @@ class PowerUpEvent extends GameEvent {
   final PowerUp powerUp;
 }
 
+/// A Good broke a combo of x3 or more.
+class ComboLostEvent extends GameEvent {
+  const ComboLostEvent(this.multiplier);
+  final int multiplier;
+}
+
+/// A boss was beaten: three perks to choose from.
+class PerkOfferEvent extends GameEvent {
+  const PerkOfferEvent(this.offer);
+  final List<Perk> offer;
+}
+
+class PerkChosenEvent extends GameEvent {
+  const PerkChosenEvent(this.perk);
+  final Perk perk;
+}
+
 class ShieldSavedEvent extends GameEvent {
   const ShieldSavedEvent();
 }
@@ -221,8 +243,10 @@ class RunSummary {
     this.splitCleared = 0,
     this.greedyHits = 0,
     this.completed = false,
-    this.stars = 0,
-  });
+    this.shieldLeft = false,
+    this.starGoals = const [],
+    int? stars,
+  }) : _stars = stars; // ignore: prefer_initializing_formals
 
   final RunMode mode;
 
@@ -235,9 +259,21 @@ class RunSummary {
   final int splitCleared;
   final int greedyHits;
 
-  /// Level mode: the target count was reached, with 1-3 [stars].
+  /// Level mode: the target count was reached.
   final bool completed;
-  final int stars;
+
+  /// A shield was still stored when the run ended.
+  final bool shieldLeft;
+
+  /// Level mode: the level's star goals.
+  final List<StarGoal> starGoals;
+  final int? _stars;
+
+  /// Level mode: bit 0 = cleared, bit i+1 = star goal i met.
+  int get goalsMet => goalMask(this, starGoals);
+
+  /// Stars earned by this run (0 unless the level was cleared).
+  int get stars => _stars ?? starCount(goalsMet);
 
   double get perfectRatio => hits == 0 ? 0 : perfects / hits;
 
@@ -318,6 +354,21 @@ class GameEngine extends ChangeNotifier {
   int? targetRounds;
   int? beatScore;
 
+  /// Level mode: the level's star goals.
+  List<StarGoal> starGoals = const [];
+
+  /// Perks picked this run, and the three on offer while [phase] is
+  /// [GamePhase.perk].
+  final perks = PerkSet();
+  List<Perk>? perkOffer;
+
+  /// Off in tests that don't want to stop at perk choices.
+  bool offerPerks = true;
+
+  /// The combo multiplier is this plus one step per
+  /// `perfectsPerMultiplierStep` Perfects in a row (Combo Saver keeps it).
+  int _multiplierBase = 1;
+
   // Per-run stats for missions and achievements.
   int hits = 0;
   int bossesCleared = 0;
@@ -329,7 +380,6 @@ class GameEngine extends ChangeNotifier {
   bool _runOpen = false;
   bool completed = false;
   int? _seedArg;
-  List<double> _starThresholds = const [0.5, 0.8];
 
   /// Restarts the current mode: the same seed for daily / duel / level
   /// runs, a fresh one otherwise.
@@ -340,8 +390,11 @@ class GameEngine extends ChangeNotifier {
     config: config,
     targetRounds: targetRounds,
     beatScore: beatScore,
-    starThresholds: _starThresholds,
+    starGoals: starGoals,
   );
+
+  /// The run has not been reported yet (its rewards are not applied).
+  bool get runOpen => _runOpen;
 
   /// Ends the current run for good (once) and reports it.
   void finishRun() {
@@ -349,16 +402,6 @@ class GameEngine extends ChangeNotifier {
     _runOpen = false;
     final summary = lastSummary ?? _summary(time, round);
     _emit(RunFinishedEvent(summary));
-  }
-
-  int _stars() {
-    if (!completed) return 0;
-    final ratio = hits == 0 ? 0 : perfects / hits;
-    var stars = 1;
-    for (final t in _starThresholds) {
-      if (ratio >= t) stars++;
-    }
-    return stars;
   }
 
   RunSummary _summary(double t, ActiveRound? r) {
@@ -384,7 +427,8 @@ class GameEngine extends ChangeNotifier {
       splitCleared: splitCleared,
       greedyHits: greedyHits,
       completed: completed,
-      stars: _stars(),
+      shieldLeft: shield,
+      starGoals: starGoals,
     );
   }
 
@@ -447,7 +491,22 @@ class GameEngine extends ChangeNotifier {
       phaseElapsed >= config.timing.restartLockout;
 
   int get coinsEarned =>
-      score ~/ math.max(1, config.coins.scorePerCoin) + zoneCoins;
+      ((score ~/ math.max(1, config.coins.scorePerCoin) + zoneCoins) *
+              perks.coinScale)
+          .round();
+
+  /// Perfects in a row that start Fever (Hot Streak lowers it).
+  int get feverGoal => perks.feverGoal(config.fever.perfectStreak);
+
+  /// Perks can be picked after bosses in these modes.
+  bool get perksEnabled =>
+      offerPerks &&
+      (mode == RunMode.endless ||
+          mode == RunMode.daily ||
+          mode == RunMode.duel);
+
+  /// The current state of the run as a summary (for live goal progress).
+  RunSummary get liveSummary => lastSummary ?? _summary(time, round);
 
   /// Fraction of the current step's fuse left (1 = full).
   double get fuse => phase == GamePhase.playing || phase == GamePhase.countdown
@@ -474,11 +533,11 @@ class GameEngine extends ChangeNotifier {
     GameConfig? config,
     int? targetRounds,
     int? beatScore,
-    List<double> starThresholds = const [0.5, 0.8],
+    List<StarGoal> starGoals = const [],
   }) {
     finishRun();
     _seedArg = seed;
-    _starThresholds = starThresholds;
+    this.starGoals = starGoals;
     this.mode = mode;
     this.config = config ?? baseConfig;
     this.targetRounds = targetRounds;
@@ -511,6 +570,9 @@ class GameEngine extends ChangeNotifier {
     slowRounds = 0;
     wideRounds = 0;
     world = 0;
+    perks.clear();
+    perkOffer = null;
+    _multiplierBase = 1;
     lastMiss = null;
     lastSummary = null;
     effects.clear();
@@ -543,6 +605,8 @@ class GameEngine extends ChangeNotifier {
     switch (phase) {
       case GamePhase.home:
         _idleAngle += dt * 0.9;
+      case GamePhase.perk:
+        round?.startTime += dt;
       case GamePhase.countdown:
         // Freeze the round: shifting its start keeps every angle constant.
         round?.startTime += dt;
@@ -588,6 +652,7 @@ class GameEngine extends ChangeNotifier {
       case GamePhase.home:
       case GamePhase.dying:
       case GamePhase.countdown:
+      case GamePhase.perk:
         return null;
     }
   }
@@ -602,6 +667,7 @@ class GameEngine extends ChangeNotifier {
       step: r.step,
       consumed: r.consumed,
       relSpeed: r.relativeSpeedAt(t),
+      perfectScale: perks.perfectScale,
     );
     if (j.isHit) {
       _onHit(r, j, t);
@@ -626,17 +692,23 @@ class GameEngine extends ChangeNotifier {
       bestPerfectStreak = math.max(bestPerfectStreak, perfectStreak);
       multiplier = math.min(
         s.maxMultiplier,
-        1 + perfectStreak ~/ math.max(1, s.perfectsPerMultiplierStep),
+        _multiplierBase +
+            perfectStreak ~/ math.max(1, s.perfectsPerMultiplierStep),
       );
     } else {
       perfectStreak = 0;
-      multiplier = 1;
+      // Combo Saver: a Good costs one step instead of the whole combo.
+      _multiplierBase = perks[Perk.keeper] > 0
+          ? math.max(1, multiplier - 1)
+          : 1;
+      multiplier = _multiplierBase;
     }
     var base = perfect ? s.perfectPoints : s.goodPoints;
     if (zone.isBonus) base += config.bonusZone.points;
     if (boss) base += config.boss.stepPoints;
     var points = base * multiplier;
     if (feverBefore) points *= config.fever.pointsMultiplier;
+    points = (points * perks.pointsScale).round();
     score += points;
     hits++;
     if (zone.isBonus) greedyHits++;
@@ -693,6 +765,12 @@ class GameEngine extends ChangeNotifier {
         ),
       );
     }
+    if (multiplier < multiplierBefore && multiplier > 1) {
+      effects.texts.add(FloatingText('COMBO SAVED x$multiplier', 2));
+    } else if (multiplier < multiplierBefore && multiplierBefore >= 3) {
+      effects.texts.add(FloatingText('COMBO LOST', -1));
+      _emit(ComboLostEvent(multiplierBefore));
+    }
     if (multiplier > multiplierBefore) {
       effects.waves.add(
         Shockwave(0, 0, zone.color, maxRadius: 1.9, life: 0.6, width: 0.04),
@@ -706,7 +784,7 @@ class GameEngine extends ChangeNotifier {
     }
     if (coinBonus > 0) effects.texts.add(FloatingText('+$coinBonus coins', -1));
 
-    if (perfect && !fever && perfectStreak >= config.fever.perfectStreak) {
+    if (perfect && !fever && perfectStreak >= feverGoal) {
       fever = true;
       fevers++;
       effects.waves.add(
@@ -777,6 +855,9 @@ class GameEngine extends ChangeNotifier {
       effects.confetti(count: 50);
       _emit(const BossEvent(cleared: true));
     }
+    final offer = boss && perksEnabled && targetRounds == null
+        ? perks.offer(seed, bossesCleared, hasShield: shield)
+        : const <Perk>[];
     setDone++;
     if (setDone >= setSize) {
       if (setSize > 1) {
@@ -807,6 +888,21 @@ class GameEngine extends ChangeNotifier {
       return;
     }
 
+    if (offer.isNotEmpty) {
+      // Hold the run here until a perk is picked (see [choosePerk]).
+      r.consumed.add(j.zoneIndex!);
+      perkOffer = offer;
+      effects.banner = null;
+      _setPhase(GamePhase.perk);
+      _emit(PerkOfferEvent(offer));
+      return;
+    }
+
+    _nextRound(r, t);
+  }
+
+  /// Starts the round after [r] at time [t], from where the pointer is.
+  void _nextRound(ActiveRound r, double t) {
     // The ball morphs into the next color with a splash.
     effects.ballFrom = r.spec.ballColors.last;
     effects.ballMorph = 1;
@@ -833,6 +929,22 @@ class GameEngine extends ChangeNotifier {
       );
     }
     notifyListeners();
+  }
+
+  /// Picks [perk] from the offer after a boss; play resumes after a short
+  /// countdown.
+  void choosePerk(Perk perk) {
+    final r = round;
+    if (phase != GamePhase.perk || r == null) return;
+    if (!(perkOffer?.contains(perk) ?? false)) return;
+    perkOffer = null;
+    perks.add(perk);
+    if (perk == Perk.shield) shield = true;
+    effects.texts.add(FloatingText(perk.title.toUpperCase(), 2, big: true));
+    _emit(PerkChosenEvent(perk));
+    _setPhase(GamePhase.playing);
+    _nextRound(r, time);
+    if (phase != GamePhase.countdown) _startCountdown();
   }
 
   void _completeLevel(ActiveRound r, double t) {
@@ -891,7 +1003,7 @@ class GameEngine extends ChangeNotifier {
     bool isFirst = false,
   }) {
     final pu = config.powerUps;
-    var speed = 1.0;
+    var speed = perks.speedScale;
     if (fever) speed *= config.fever.speedFactor;
     if (slowRounds > 0) speed *= pu.slowFactor;
     final local = wrapAngle(pointer - ring);
@@ -902,7 +1014,7 @@ class GameEngine extends ChangeNotifier {
       previousColor: previousColor,
       isFirst: isFirst,
       speedFactor: speed,
-      sizeFactor: wideRounds > 0 ? pu.wideFactor : 1,
+      sizeFactor: (wideRounds > 0 ? pu.wideFactor : 1) * perks.sizeScale,
     );
     assert(() {
       final problems = RoundGenerator.validate(
@@ -1025,6 +1137,7 @@ class GameEngine extends ChangeNotifier {
       // Zen: no game over. The streak resets and a fresh round starts.
       perfectStreak = 0;
       multiplier = 1;
+      _multiplierBase = 1;
       _endFever();
       effects.shake = 0.4;
       effects.texts.add(FloatingText(j.timeout ? 'MISSED IT' : 'MISS', -1));
@@ -1046,6 +1159,7 @@ class GameEngine extends ChangeNotifier {
       shield = false;
       perfectStreak = 0;
       multiplier = 1;
+      _multiplierBase = 1;
       _endFever();
       effects.shieldFlash = 1;
       effects.shake = 0.5;
@@ -1073,6 +1187,7 @@ class GameEngine extends ChangeNotifier {
     lastMiss = j;
     perfectStreak = 0;
     multiplier = 1;
+    _multiplierBase = 1;
     _endFever();
     effects.shake = 1;
     effects.glowTarget = 0;

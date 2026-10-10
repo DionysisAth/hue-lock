@@ -59,7 +59,8 @@ void main() {
       expect(c.stageFor(14).reverseChance, 1);
       expect(c.stageFor(30).rotateChance, greaterThan(0));
       expect(c.stageFor(500).name, 'chaos');
-      expect(c.boss.isBossLevel(25), isTrue);
+      expect(c.boss.isBossLevel(15), isTrue);
+      expect(c.boss.isBossLevel(25), isFalse);
       expect(c.boss.isBossLevel(0), isFalse);
     });
 

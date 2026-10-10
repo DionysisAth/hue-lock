@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../core/angles.dart';
 import '../game/effects.dart';
 import '../game/game_engine.dart';
+import '../game/hit_judge.dart';
 import '../game/round.dart';
 import 'ball_skins.dart';
 import 'palette.dart';
@@ -36,6 +37,15 @@ const worldTints = [
   Color(0xFF4DFFB8),
   Color(0xFFE040FB),
   Color(0xFF3D5AFE),
+];
+
+/// Halo color per combo multiplier (index = multiplier - 1).
+const comboHeat = [
+  Color(0xFFFFFFFF),
+  Color(0xFF7FE7FF),
+  Color(0xFFFFD54A),
+  Color(0xFFFF9F43),
+  Color(0xFFFF4D8D),
 ];
 
 const _ink = Color(0xE6101018);
@@ -100,19 +110,32 @@ class GamePainter extends CustomPainter {
     final dead =
         engine.phase == GamePhase.dying || engine.phase == GamePhase.gameOver;
 
-    // Halo + neutral ring (rainbow-tinted during Fever).
-    if (theme.outerHalo != null || engine.fever) {
+    // Halo + neutral ring: it heats up with the combo (x2 cyan .. x5
+    // pink) and cycles through hues in Fever. A wide faint stroke under a
+    // thin bright one stands in for a blur (no offscreen pass).
+    final heat = engine.multiplier.clamp(1, comboHeat.length);
+    if (theme.outerHalo != null || engine.fever || heat >= 2) {
       final halo = engine.fever
           ? HSVColor.fromAHSV(1, (t * 120) % 360, 0.8, 1).toColor()
+          : heat >= 2
+          ? comboHeat[heat - 1]
           : theme.outerHalo!;
+      final width = engine.fever ? 3.0 : (heat >= 2 ? 1.5 + 0.5 * heat : 2.0);
+      final a = math.min(1.0, 0.35 + 0.4 * fx.glow + 0.08 * (heat - 1));
+      final haloPaint = Paint()..style = PaintingStyle.stroke;
       canvas.drawCircle(
         c,
         r + ringW * 1.1,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = engine.fever ? 3 : 2
-          ..color = halo.withValues(alpha: 0.35 + 0.4 * fx.glow)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+        haloPaint
+          ..strokeWidth = width * 4
+          ..color = halo.withValues(alpha: a * 0.16),
+      );
+      canvas.drawCircle(
+        c,
+        r + ringW * 1.1,
+        haloPaint
+          ..strokeWidth = width
+          ..color = halo.withValues(alpha: a),
       );
     }
     canvas.drawCircle(
@@ -941,6 +964,7 @@ class GamePainter extends CustomPainter {
     final spec = round.spec;
     final timing = engine.config.timing;
     final speed = spec.relativeSpeed.abs();
+    final scale = engine.perks.perfectScale;
     final rect = Rect.fromCircle(center: layout.center, radius: layout.radius);
     final pulse = 0.75 + 0.25 * math.sin(engine.time * 6);
     final paint = Paint()
@@ -953,13 +977,7 @@ class GamePainter extends CustomPainter {
     for (var i = 0; i < spec.zones.length; i++) {
       if (round.consumed.contains(i)) continue;
       final z = spec.zones[i];
-      final half = math.min(
-        z.halfWidth,
-        math.max(
-          z.width * timing.perfectFraction / 2,
-          timing.perfectMinWindow * speed / 2,
-        ),
-      );
+      final half = perfectHalfWidth(z, timing, speed, scale);
       final center = ringAngle + z.center;
       canvas.drawArc(rect, _arcStart(center - half), half * 2, false, paint);
     }
@@ -977,10 +995,19 @@ class GamePainter extends CustomPainter {
     final speed = round == null || engine.phase != GamePhase.playing
         ? 0.0
         : round.relativeSpeedAt(engine.time);
-    final length = math.min(0.6, speed * 0.09);
+    // The trail grows and takes the halo's color as the combo builds.
+    final heat = engine.multiplier.clamp(1, comboHeat.length);
+    final length = math.min(
+      0.6 + 0.08 * heat,
+      speed * 0.09 * (0.8 + 0.2 * heat),
+    );
     if (length < 0.02) return;
     const segments = 7;
     final rect = Rect.fromCircle(center: layout.center, radius: layout.radius);
+    final tint = heat >= 2
+        ? Color.lerp(theme.pointer, comboHeat[heat - 1], 0.6)!
+        : theme.pointer;
+    final paint = Paint()..style = PaintingStyle.stroke;
     for (var i = 0; i < segments; i++) {
       final a0 = angle - dir * length * i / segments;
       final a1 = angle - dir * length * (i + 1) / segments;
@@ -991,16 +1018,17 @@ class GamePainter extends CustomPainter {
               0.8,
               1,
             ).toColor()
-          : theme.pointer;
+          : tint;
       canvas.drawArc(
         rect,
         _arcStart(math.min(a0, a1)),
         (a1 - a0).abs(),
         false,
-        Paint()
-          ..style = PaintingStyle.stroke
+        paint
           ..strokeWidth = ringW * (0.9 - i * 0.09)
-          ..color = color.withValues(alpha: 0.32 * (1 - i / segments)),
+          ..color = color.withValues(
+            alpha: (0.32 + 0.04 * (heat - 1)) * (1 - i / segments),
+          ),
       );
     }
   }

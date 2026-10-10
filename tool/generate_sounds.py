@@ -179,6 +179,11 @@ def clang():
     ])
 
 
+def combo_lost():
+    """Combo broken: a short, soft falling two-note 'wah'."""
+    return mix(sweep(660, 440, 0.16, 6.0), [0.0] * int(RATE * 0.11) + sweep(494, 330, 0.24, 5.0))
+
+
 def mix(*parts):
     n = max(len(p) for p in parts)
     return [sum(p[i] if i < len(p) else 0 for p in parts) for i in range(n)]
@@ -202,6 +207,7 @@ def main():
     write("combo_up.wav", combo_up(), gain=0.65)
     write("streak.wav", streak(), gain=0.6)
     write("boss.wav", mix(sweep(220, 110, 0.9, 2.0), sweep(233, 116, 0.9, 2.0)), gain=0.7)
+    write("combo_lost.wav", combo_lost(), gain=0.5)
 
 
 if __name__ == "__main__":

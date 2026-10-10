@@ -48,8 +48,14 @@ class PlayerProfile {
   int dailyExtraAttempts = 0;
   int dailyBest = 0;
 
-  /// Levels mode: best stars per level id.
+  /// Levels mode: stars per level id (count of [levelGoals] bits).
   Map<String, int> levelStars = {};
+
+  /// Levels mode: star goals met per level id (bit 0 = cleared).
+  Map<String, int> levelGoals = {};
+
+  /// Chapter rewards already given ("C2", and "C2*" for all its stars).
+  Set<String> chapterRewards = {};
 
   /// Continue tokens (from rewards and packs).
   int tokens = 0;
@@ -89,6 +95,8 @@ class PlayerProfile {
     'dailyExtraAttempts': dailyExtraAttempts,
     'dailyBest': dailyBest,
     'levelStars': levelStars,
+    'levelGoals': levelGoals,
+    'chapterRewards': chapterRewards.toList(),
     'tokens': tokens,
     'starterPack': starterPack,
     'dailyReminder': dailyReminder,
@@ -130,6 +138,13 @@ class PlayerProfile {
     other.levelStars.forEach((k, v) {
       if (v > (levelStars[k] ?? 0)) levelStars[k] = v;
     });
+    other.levelGoals.forEach((k, v) {
+      final merged = (levelGoals[k] ?? 0) | v;
+      levelGoals[k] = merged;
+      final stars = merged.toRadixString(2).replaceAll('0', '').length;
+      if (stars > (levelStars[k] ?? 0)) levelStars[k] = stars;
+    });
+    chapterRewards.addAll(other.chapterRewards);
     if (other.dailyDay == dailyDay && other.dailyBest > dailyBest) {
       dailyBest = other.dailyBest;
     }
@@ -178,6 +193,10 @@ class PlayerProfile {
       ..dailyExtraAttempts = get('dailyExtraAttempts', 0)
       ..dailyBest = get('dailyBest', 0)
       ..levelStars = _intMap(j['levelStars'])
+      ..levelGoals = _intMap(j['levelGoals'])
+      ..chapterRewards = {
+        ...((j['chapterRewards'] as List?) ?? const []).whereType<String>(),
+      }
       ..tokens = get('tokens', 0)
       ..starterPack = get('starterPack', false)
       ..dailyReminder = get('dailyReminder', false)

@@ -159,7 +159,9 @@ class ShopScreen extends StatelessWidget {
                   ..showSnackBar(
                     SnackBar(
                       content: Text(
-                        exclusive
+                        item.price == levelsReward
+                            ? 'Clear a chapter on the Levels map to unlock it.'
+                            : exclusive
                             ? 'Exclusive to the Starter Pack (see PACKS).'
                             : 'You need ${item.price - coins} more coins. '
                                   'Play runs to earn them!',
@@ -189,6 +191,8 @@ class ShopScreen extends StatelessWidget {
                         ? Text('EQUIPPED', style: _tag(theme))
                         : item.owned
                         ? Text('OWNED', style: _tag(theme))
+                        : item.price == levelsReward
+                        ? Text('LEVELS REWARD', style: _tag(theme))
                         : exclusive
                         ? Text('STARTER PACK', style: _tag(theme))
                         : Opacity(

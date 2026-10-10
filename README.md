@@ -11,9 +11,9 @@ Challenge, Zen, friend duels, XP, missions, daily rewards and achievements.
 Nothing needs a server: leaderboards, achievements and cloud save use the free
 Google Play Games / Game Center services, and duels work with a share code.
 
-| Home | Perfect streak | NOT round | Levels |
+| Home | Perfect streak | Perks | Levels |
 |---|---|---|---|
-| ![](docs/store/screenshots/1_home.png) | ![](docs/store/screenshots/2_perfect.png) | ![](docs/store/screenshots/3_not.png) | ![](docs/store/screenshots/5_levels.png) |
+| ![](docs/store/screenshots/1_home.png) | ![](docs/store/screenshots/2_perfect.png) | ![](docs/store/screenshots/7_perks.png) | ![](docs/store/screenshots/5_levels.png) |
 
 ## What makes a run
 
@@ -38,8 +38,19 @@ Google Play Games / Game Center services, and duels work with a share code.
   - **Shield:** absorbs one miss.
   - **Slow-mo:** the next 4 rounds are slower.
   - **Wide:** zones are bigger for 5 rounds.
-- **Boss rounds** every 25 levels. A color sequence flashes in the ball,
+- **Boss rounds** every 15 levels. A color sequence flashes in the ball,
   then you hit it in order on four zones.
+- **Perks.** Beating a boss (Endless, Daily, duels) pauses the run to offer
+  three of eight perks, which last until the run ends: Steady Hand (wider
+  Perfect window), Shield, Chill (slower pointer), Wide Zones, Coin Magnet,
+  Hot Streak (Fever one Perfect sooner), Combo Saver (a Good costs one combo
+  step, not all of it) and Greed (+50% points, smaller zones). Offers come
+  from the seed, so a Daily or duel offers everyone the same choices.
+- **Always a next goal.** The HUD shows what's next (boss in N, the next
+  stage, or a level's target count) with a hairline progress bar, and turns
+  gold when the best score is within reach. The game-over screen shows the
+  two things the player is closest to: a new best, the next stage or boss,
+  a mission, the next player-level unlock.
 - **Stages.** Every 20 levels the run enters a new stage (Dawn, Neon Reef,
   Ember, Aurora, Nebula, Void, …). Each has its own background tint and a
   banner, and the music gets faster.
@@ -55,8 +66,14 @@ Google Play Games / Game Center services, and duels work with a share code.
   streak toward Fever, and the score counts up with a "+N" pop. The ball
   morphs into the next color, the pointer leaves a trail, background dust
   speeds up with the combo, and a new best rains confetti.
-- **Adaptive music.** Four stacked layers build with the run, Fever plays
-  the full mix, and a miss cuts it to silence.
+- **Adaptive music and combo heat.** Four stacked layers follow the
+  combo: pad and bass to start, drums once the run is going, the driving
+  bass at combo x2, the full mix in Fever. Breaking a combo of x3 or more
+  plays a "combo lost" sound and drops the music back; a miss cuts it to
+  silence. Each layer has its own preloaded player, so a change is a seek
+  and a 300 ms crossfade (changes are at least 1.5 s apart). The ring's
+  halo and the pointer trail heat up with the multiplier (x2 cyan to x5
+  pink), drawn as plain strokes with no blur.
 
 - **Time to react.** Nothing new ever starts under the pointer's nose, and
   only a boss round stops the pointer:
@@ -163,7 +180,7 @@ test/         generator fairness, hit judging, engine, modes, levels,
 | Mode | What it is | Where |
 |---|---|---|
 | **Endless** | The high-score mode (tap on home). New mechanics and NOT / split rounds show a banner but never freeze the run; only boss rounds pause. | `GameEngine` (`RunMode.endless`) |
-| **Levels** | 24 short levels in 8 chapters. Each chapter teaches one mechanic: basics, reverse/greedy/lock sets, NOT/decoys, spin/ghost, split, surge, boss memory, mastery. You get 1-3 stars for your Perfect ratio, and each level unlocks the next. | `assets/config/levels.json`, `lib/meta/levels.dart`, `lib/ui/levels_screen.dart` |
+| **Levels** | A map of 24 short levels in 8 chapters. Each chapter teaches one mechanic: basics, reverse/greedy/lock sets, NOT/decoys, spin/ghost, split, surge, boss memory, mastery. Clearing a level is one star; each of its two goals ("Hit 5 Perfects", "Finish with a shield", ...) is another, and stars stay earned across tries. A chapter opens at a total star count, and clearing it gives a reward once: coins, tokens, or a ball or ring you can't buy (Bullseye, Swirl, Superstar, Sunset, Deep Sea). Every star in a chapter adds a bonus. | `assets/config/levels.json`, `lib/meta/levels.dart`, `lib/game/star_goals.dart`, `lib/ui/levels_screen.dart` |
 | **Daily Challenge** | The same seeded run for everyone today, on the Pacific-time day that matches Play Games daily leaderboards. One free attempt, plus up to 2 more for a rewarded ad. No continues. | `dailyChallengeDay` / `dailySeed` in `lib/meta/progression.dart` |
 | **Zen** | No game over and no score. A miss just resets the streak. | `GameEngine._onMiss` |
 | **Duel** | "Challenge a friend" shares a score image and a code like `HL-4F7KQ2MXA9C`, which holds the run's seed and the score to beat (with a checksum). The friend pastes it in DUEL and plays the exact same run. | `DuelCode`, `lib/ui/mode_dialogs.dart` |
