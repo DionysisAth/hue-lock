@@ -121,7 +121,7 @@ This needs the app created in Play Console first (section 1, step 3).
 
    Play Games keeps daily, weekly and all-time views of each one.
 5. **Achievements (optional):** one per entry in `achievementDefs` in
-   `lib/meta/progression.dart` (18). Achievements must be created before
+   `lib/meta/progression.dart` (19). Achievements must be created before
    publishing, but you can skip them; the leaderboards work without them.
 6. **Testers:** under Testers, add your Google account (and your closed
    testers). Until Play Games Services is published, only testers can sign

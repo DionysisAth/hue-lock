@@ -8,7 +8,7 @@ enum Perk {
   chill('Chill', 'Pointer 8% slower', maxStacks: 2),
   wide('Wide Zones', 'All zones 12% wider', maxStacks: 2),
   magnet('Coin Magnet', '+50% coins this run', maxStacks: 2),
-  quick('Quick Combo', 'Combo grows every 2 Perfects, not 3', maxStacks: 1),
+  hot('Hot Streak', 'Fever starts one Perfect sooner', maxStacks: 2),
   keeper('Combo Saver', 'A Good only drops your combo one step', maxStacks: 1),
   greed('Greed', '+50% points, but zones 10% smaller', maxStacks: 2);
 
@@ -49,9 +49,8 @@ class PerkSet {
   double get pointsScale => 1 + 0.5 * this[Perk.greed];
   double get coinScale => 1 + 0.5 * this[Perk.magnet];
 
-  /// Perfects in a row per combo step, never below 2.
-  int comboStep(int base) =>
-      this[Perk.quick] > 0 ? (base - 1).clamp(2, base) : base;
+  /// Perfects in a row needed for Fever, never below 3.
+  int feverGoal(int base) => (base - this[Perk.hot]).clamp(3, base);
 
   /// Three different perks to choose from (fewer if most are maxed out),
   /// the same for everyone with the same [seed] and boss count.

@@ -125,7 +125,8 @@ void main() {
     expect(spin['split'], isNull);
 
     expect(sample(50)['split'], greaterThan(0));
-    expect(sample(62)['surge'], greaterThan(0));
+    expect(sample(62)['surge'], isNull, reason: 'surge is off');
+    expect(sample(90)['surge'], isNull);
     expect(sample(15)['boss'], 300, reason: 'boss every 15 levels');
     expect(sample(45)['boss'], 300);
   });

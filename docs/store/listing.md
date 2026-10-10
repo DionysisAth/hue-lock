@@ -37,14 +37,14 @@ To regenerate them:
 > over. Easy to learn, impossible to put down.
 >
 > **Chase the Perfect.** Hit the bright center of a zone for a PERFECT. Chain
-> them to build your combo up to x5, while the music and the ring heat up
-> with you.
+> them to build your combo, then five in a row sets off FEVER: double points,
+> a faster pointer and a screen full of color.
 >
 > **Rules that flip on you.**
 > - NOT rounds: hit any color *except* the ball's.
 > - Split balls: two colors in one lap.
 > - Boss rounds: watch the sequence, then play it back.
-> - Ghost zones, a spinning ring, and a pointer that surges and reverses.
+> - Ghost zones, decoys, a spinning ring and a pointer that reverses.
 >
 > **Build your run.** Beat a boss and pick one of three perks: a wider
 > Perfect window, a shield, a slower pointer, a combo saver, more coins...

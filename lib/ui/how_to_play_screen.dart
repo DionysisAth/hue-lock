@@ -34,8 +34,8 @@ class HowToPlayScreen extends StatelessWidget {
         (
           Icons.local_fire_department_rounded,
           0,
-          'Combo',
-          'Every 3 Perfects in a row raise the multiplier, up to x5. A Good resets it.',
+          'Fever',
+          '5 Perfects in a row: double points and a faster pointer. A Good ends it.',
         ),
         (
           Icons.more_horiz_rounded,
@@ -89,12 +89,6 @@ class HowToPlayScreen extends StatelessWidget {
           2,
           'Ghost',
           'Zones blink in and out. Remember where they are.',
-        ),
-        (
-          Icons.speed_rounded,
-          0,
-          'Surge',
-          'Orange pointer: its speed swings up and down.',
         ),
         (
           Icons.content_copy_rounded,

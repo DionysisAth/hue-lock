@@ -200,6 +200,7 @@ def main():
     write("coin.wav", two_tone(1318.5, 1975.5), gain=0.6)
     write("new_best.wav", arpeggio([523.25, 659.25, 783.99, 1046.5]), gain=0.7)
     write("ui.wav", ui_tick(), gain=0.5)
+    write("fever.wav", mix(sweep(300, 1800, 0.55, 2.5), arpeggio([880, 1108.7, 1318.5, 1760], step=0.06, tail=0.25)), gain=0.75)
     write("power_up.wav", arpeggio([1046.5, 1318.5, 1568, 2093], step=0.045, tail=0.2), gain=0.6)
     write("shield.wav", clang(), gain=0.7)
     write("stage.wav", arpeggio([392, 523.25, 659.25, 783.99, 1046.5], step=0.09, tail=0.5), gain=0.7)

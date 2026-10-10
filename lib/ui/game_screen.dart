@@ -142,7 +142,7 @@ class _GameScreenState extends State<GameScreen>
     fx.locks.add(LockFlash(0, 0.5, 3, perfect: true));
     fx.texts.add(FloatingText('WARM', 1, huge: true));
     e
-      ..multiplier = 5
+      ..fever = true
       ..shield = true;
     try {
       for (final theme in ringThemes) {
@@ -222,14 +222,14 @@ class _GameScreenState extends State<GameScreen>
   }
 
   /// Music builds with the combo: pad and bass at the start, drums once
-  /// the run is going, the driving bass at combo x2 and the full mix from
-  /// combo x4. A broken combo drops it back.
+  /// the run is going, the driving bass at combo x2 and the full mix in
+  /// Fever. A broken combo drops it back.
   void _updateMusic() {
     final e = engine;
     final int intensity;
     if (e.phase == GamePhase.home || e.mode == RunMode.zen) {
       intensity = 1;
-    } else if (e.multiplier >= 4) {
+    } else if (e.fever) {
       intensity = 4;
     } else {
       final base = e.level >= 8 ? 2 : 1;
@@ -420,6 +420,12 @@ class _GameScreenState extends State<GameScreen>
       case StreakEvent():
         s.audio.play(Sfx.streak);
         s.haptics.celebrate();
+      case FeverEvent(:final active):
+        if (active) {
+          s.audio.play(Sfx.fever);
+          s.haptics.celebrate();
+        }
+        _updateMusic();
       case PowerUpEvent(:final powerUp):
         s.audio.play(Sfx.powerUp);
         s.analytics.log('power_up', {'type': powerUp.name});

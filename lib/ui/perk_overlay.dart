@@ -13,7 +13,7 @@ IconData perkIcon(Perk p) => switch (p) {
   Perk.chill => Icons.ac_unit_rounded,
   Perk.wide => Icons.open_in_full_rounded,
   Perk.magnet => Icons.monetization_on_rounded,
-  Perk.quick => Icons.bolt_rounded,
+  Perk.hot => Icons.local_fire_department_rounded,
   Perk.keeper => Icons.link_rounded,
   Perk.greed => Icons.diamond_rounded,
 };
@@ -24,7 +24,7 @@ Color perkColor(Perk p) => switch (p) {
   Perk.chill => const Color(0xFF7FE7FF),
   Perk.wide => HuePalette.standard[3],
   Perk.magnet => coinColor,
-  Perk.quick => const Color(0xFFFF7A2F),
+  Perk.hot => const Color(0xFFFF7A2F),
   Perk.keeper => const Color(0xFFB08CFF),
   Perk.greed => HuePalette.standard[2],
 };

@@ -19,7 +19,7 @@ OUT = os.path.join(ROOT, "docs", "store", "screenshots")
 
 SHOTS = [
     ("1_home", "ONE TAP.", "PURE TIMING.", YELLOW),
-    ("2_perfect", "CHAIN PERFECTS", "UP TO COMBO x5", RED),
+    ("2_perfect", "CHAIN PERFECTS", "INTO FEVER", RED),
     ("3_not", "RULES THAT", "FLIP ON YOU", BLUE),
     ("4_boss", "REMEMBER THE", "BOSS SEQUENCE", GREEN),
     ("5_levels", "60 LEVELS", "TO MASTER", YELLOW),

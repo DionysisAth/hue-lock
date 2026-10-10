@@ -50,8 +50,8 @@
     { "fromLevel": 26, "name": "not",       "colors": [3, 4], "locks": [2, 3], "reverse": 0.7, "decoys": 1, "rotate": 0.0, "bonus": 0.2,  "inverted": 0.25, "split": 0.0,  "ghost": 0.0,  "pulse": 0.0 },
     { "fromLevel": 36, "name": "spin",      "colors": [3, 4], "locks": [2, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.8, "bonus": 0.2,  "inverted": 0.15, "split": 0.0,  "ghost": 0.3,  "pulse": 0.0 },
     { "fromLevel": 48, "name": "split",     "colors": [2, 4], "locks": [2, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.5, "bonus": 0.2,  "inverted": 0.15, "split": 0.3,  "ghost": 0.2,  "pulse": 0.0 },
-    { "fromLevel": 60, "name": "surge",     "colors": [2, 4], "locks": [2, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.4, "bonus": 0.2,  "inverted": 0.15, "split": 0.2,  "ghost": 0.2,  "pulse": 0.4 },
-    { "fromLevel": 75, "name": "chaos",     "colors": [2, 4], "locks": [3, 5], "reverse": 0.5, "decoys": 1, "rotate": 0.5, "bonus": 0.25, "inverted": 0.2,  "split": 0.2,  "ghost": 0.25, "pulse": 0.3 }
+    { "fromLevel": 60, "name": "veteran",   "colors": [2, 4], "locks": [2, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.4, "bonus": 0.2,  "inverted": 0.15, "split": 0.2,  "ghost": 0.2,  "pulse": 0.0 },
+    { "fromLevel": 75, "name": "chaos",     "colors": [2, 4], "locks": [3, 5], "reverse": 0.5, "decoys": 1, "rotate": 0.5, "bonus": 0.25, "inverted": 0.2,  "split": 0.2,  "ghost": 0.25, "pulse": 0.0 }
   ],
 
   "ringRotation": {
@@ -60,7 +60,7 @@
   },
 
   "pulse": {
-    "_comment": "Surge rounds: pointer speed swings by +/- amplitude around its base speed.",
+    "_comment": "Surge (pointer speed swings by +/- amplitude) is off: no stage or level uses it (stage 'pulse' chance 0).",
     "amplitude": 0.45,
     "periodMs": 900
   },
@@ -86,6 +86,12 @@
   "locks": {
     "_comment": "A set of N locks in a row; clearing the set pays this much per lock.",
     "setBonusPerLock": 1
+  },
+
+  "fever": {
+    "perfectStreak": 5,
+    "pointsMultiplier": 2,
+    "speedFactor": 1.12
   },
 
   "powerUps": {

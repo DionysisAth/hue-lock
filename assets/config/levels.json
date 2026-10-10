@@ -98,15 +98,15 @@
       ]
     },
     {
-      "title": "Surge",
+      "title": "Fever Pitch",
       "unlockStars": 60,
       "reward": {"coins": 250, "tokens": 1},
       "levels": [
-        {"title": "Surge", "teaches": "SURGE: the orange pointer speeds up and slows down. Watch it, don't count it.", "targets": 15, "speed": 131, "speedPerTarget": 1.54, "size": 52.9, "sizePerTarget": -0.322, "stage": {"colors": [2, 2], "pulse": 1}, "goals": ["perfects:8", "streak:7"]},
-        {"title": "Rollercoaster", "teaches": "Surging pointer on a spinning ring.", "targets": 16, "speed": 135, "speedPerTarget": 1.62, "size": 51.7, "sizePerTarget": -0.346, "stage": {"colors": [2, 3], "pulse": 0.8, "rotate": 0.6}, "goals": ["perfects:8", "streak:7"]},
-        {"title": "Pulse Check", "teaches": "Surges and flips.", "targets": 16, "speed": 136, "speedPerTarget": 1.64, "size": 51.4, "sizePerTarget": -0.352, "stage": {"colors": [2, 3], "pulse": 0.7, "reverse": 0.6}, "goals": ["perfects:8", "streak:7"]},
-        {"title": "Heartbeat", "teaches": "Surges and ghosts.", "targets": 16, "speed": 137, "speedPerTarget": 1.66, "size": 51.1, "sizePerTarget": -0.358, "stage": {"colors": [3, 4], "pulse": 0.6, "ghost": 0.4}, "goals": ["perfects:8", "streak:7"]},
-        {"title": "Overdrive", "teaches": "Surges, splits and decoys.", "targets": 16, "speed": 138, "speedPerTarget": 1.68, "size": 50.8, "sizePerTarget": -0.364, "stage": {"colors": [3, 4], "pulse": 0.6, "split": 0.3, "decoys": 1}, "goals": ["perfects:8", "streak:7"]}
+        {"title": "Fever Pitch", "teaches": "5 Perfects in a row starts FEVER: double points and a faster pointer. A Good ends it.", "targets": 15, "speed": 131, "speedPerTarget": 1.54, "size": 52.9, "sizePerTarget": -0.322, "stage": {"colors": [1, 2]}, "goals": ["fevers:1", "streak:6"]},
+        {"title": "Heat Wave", "teaches": "Every Perfect during Fever scores double. Keep it going.", "targets": 16, "speed": 135, "speedPerTarget": 1.62, "size": 51.7, "sizePerTarget": -0.346, "stage": {"colors": [2, 2]}, "goals": ["fevers:1", "streak:8"]},
+        {"title": "Hot and Cold", "teaches": "Fever through flips.", "targets": 16, "speed": 136, "speedPerTarget": 1.64, "size": 51.4, "sizePerTarget": -0.352, "stage": {"colors": [2, 3], "reverse": 0.6}, "goals": ["fevers:1", "streak:7"]},
+        {"title": "Wildfire", "teaches": "Fever on a spinning ring.", "targets": 16, "speed": 137, "speedPerTarget": 1.66, "size": 51.1, "sizePerTarget": -0.358, "stage": {"colors": [2, 3], "rotate": 0.5}, "goals": ["fevers:1", "streak:8"]},
+        {"title": "Inferno", "teaches": "Fever with decoys and flips.", "targets": 16, "speed": 138, "speedPerTarget": 1.68, "size": 50.8, "sizePerTarget": -0.364, "stage": {"colors": [3, 4], "decoys": 1, "reverse": 0.5}, "goals": ["fevers:1", "ratio:75"]}
       ]
     },
     {
@@ -138,11 +138,11 @@
       "unlockStars": 82,
       "reward": {"coins": 500, "tokens": 3},
       "levels": [
-        {"title": "Chaos", "teaches": "Everything you have learned, mixed.", "targets": 19, "speed": 150, "speedPerTarget": 1.9, "size": 47.5, "sizePerTarget": -0.43, "stage": {"colors": [2, 4], "reverse": 0.5, "decoys": 1, "rotate": 0.4, "bonus": 0.2, "inverted": 0.2, "split": 0.2, "ghost": 0.2, "pulse": 0.2, "locks": [3, 4]}, "powerUpChance": 0.15, "goals": ["perfects:10", "streak:9"]},
-        {"title": "Gauntlet", "teaches": "Longer, with a boss in the middle.", "targets": 23, "speed": 152, "speedPerTarget": 1.92, "size": 47.2, "sizePerTarget": -0.436, "stage": {"colors": [3, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.5, "inverted": 0.25, "split": 0.25, "ghost": 0.25, "pulse": 0.3, "locks": [3, 5]}, "bossEvery": 11, "bossLength": [4, 4], "goals": ["perfects:12", "streak:9"]},
-        {"title": "Storm", "teaches": "Fast spins and surges.", "targets": 19, "speed": 153, "speedPerTarget": 1.94, "size": 46.9, "sizePerTarget": -0.442, "stage": {"colors": [3, 4], "reverse": 0.6, "rotate": 0.7, "pulse": 0.4, "ghost": 0.3, "decoys": 1}, "goals": ["perfects:10", "streak:9"]},
+        {"title": "Chaos", "teaches": "Everything you have learned, mixed.", "targets": 19, "speed": 150, "speedPerTarget": 1.9, "size": 47.5, "sizePerTarget": -0.43, "stage": {"colors": [2, 4], "reverse": 0.5, "decoys": 1, "rotate": 0.4, "bonus": 0.2, "inverted": 0.2, "split": 0.2, "ghost": 0.2, "locks": [3, 4]}, "powerUpChance": 0.15, "goals": ["perfects:10", "streak:9"]},
+        {"title": "Gauntlet", "teaches": "Longer, with a boss in the middle.", "targets": 23, "speed": 152, "speedPerTarget": 1.92, "size": 47.2, "sizePerTarget": -0.436, "stage": {"colors": [3, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.5, "inverted": 0.25, "split": 0.25, "ghost": 0.25, "locks": [3, 5]}, "bossEvery": 11, "bossLength": [4, 4], "goals": ["perfects:12", "streak:9"]},
+        {"title": "Storm", "teaches": "Fast spins and ghosts.", "targets": 19, "speed": 153, "speedPerTarget": 1.94, "size": 46.9, "sizePerTarget": -0.442, "stage": {"colors": [3, 4], "reverse": 0.6, "rotate": 0.7, "ghost": 0.3, "decoys": 1}, "goals": ["perfects:10", "streak:9"]},
         {"title": "Endgame", "teaches": "No mercy: decoys, splits and NOTs.", "targets": 19, "speed": 154, "speedPerTarget": 1.96, "size": 46.6, "sizePerTarget": -0.448, "stage": {"colors": [3, 4], "reverse": 0.6, "decoys": 1, "inverted": 0.35, "split": 0.35, "rotate": 0.4}, "goals": ["perfects:10", "streak:9"]},
-        {"title": "Hue Master", "teaches": "The final test. Three stars here means you have mastered Hue Lock.", "targets": 25, "speed": 155, "speedPerTarget": 1.98, "size": 46.3, "sizePerTarget": -0.454, "stage": {"colors": [3, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.6, "inverted": 0.3, "split": 0.3, "ghost": 0.3, "pulse": 0.4, "bonus": 0.2, "locks": [4, 5]}, "bossEvery": 13, "bossLength": [4, 4], "goals": ["perfects:13", "streak:9"]}
+        {"title": "Hue Master", "teaches": "The final test. Three stars here means you have mastered Hue Lock.", "targets": 25, "speed": 155, "speedPerTarget": 1.98, "size": 46.3, "sizePerTarget": -0.454, "stage": {"colors": [3, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.6, "inverted": 0.3, "split": 0.3, "ghost": 0.3, "bonus": 0.2, "locks": [4, 5]}, "bossEvery": 13, "bossLength": [4, 4], "goals": ["perfects:13", "streak:9"]}
       ]
     }
   ]

@@ -1,13 +1,22 @@
 import 'game_engine.dart';
 
-enum GoalType { perfects, streak, ratio, greedy, combo, powerUps, shield }
+enum GoalType {
+  perfects,
+  streak,
+  ratio,
+  greedy,
+  fevers,
+  combo,
+  powerUps,
+  shield,
+}
 
 /// One star challenge of a level ("Hit 5 Perfects", "Finish with a shield").
 /// Clearing a level is the first star; each goal met is one more.
 class StarGoal {
   const StarGoal(this.type, [this.target = 1]);
 
-  /// "perfects:5", "streak:4", "ratio:60", "greedy:2", "combo:3",
+  /// "perfects:5", "streak:4", "ratio:60", "greedy:2", "fevers:1", "combo:3",
   /// "powerUps:2" or "shield".
   factory StarGoal.parse(String source) {
     final parts = source.split(':');
@@ -27,6 +36,8 @@ class StarGoal {
     GoalType.ratio => '$target% Perfect hits',
     GoalType.greedy =>
       target == 1 ? 'Hit a gold zone' : 'Hit $target gold zones',
+    GoalType.fevers =>
+      target == 1 ? 'Trigger Fever' : 'Trigger Fever $target times',
     GoalType.combo => 'Reach combo x$target',
     GoalType.powerUps =>
       target == 1 ? 'Collect a power-up' : 'Collect $target power-ups',
@@ -39,6 +50,7 @@ class StarGoal {
     GoalType.streak => 'IN A ROW',
     GoalType.ratio => 'PERFECT %',
     GoalType.greedy => 'GOLD',
+    GoalType.fevers => 'FEVER',
     GoalType.combo => 'COMBO',
     GoalType.powerUps => 'POWER-UPS',
     GoalType.shield => 'SHIELD',
@@ -50,6 +62,7 @@ class StarGoal {
     GoalType.streak => s.bestPerfectStreak,
     GoalType.ratio => (s.perfectRatio * 100).floor(),
     GoalType.greedy => s.greedyHits,
+    GoalType.fevers => s.fevers,
     GoalType.combo => s.bestMultiplier,
     GoalType.powerUps => s.powerUps,
     GoalType.shield => s.shieldLeft ? 1 : 0,

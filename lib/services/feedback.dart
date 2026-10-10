@@ -15,6 +15,7 @@ enum Sfx {
   shield,
   stage,
   boss,
+  fever,
   comboUp,
   comboLost,
   streak,
@@ -43,6 +44,7 @@ class AudioService {
     'shield': 'audio/shield.wav',
     'stage': 'audio/stage.wav',
     'boss': 'audio/boss.wav',
+    'fever': 'audio/fever.wav',
     'comboUp': 'audio/combo_up.wav',
     'comboLost': 'audio/combo_lost.wav',
     'streak': 'audio/streak.wav',
@@ -203,7 +205,7 @@ class MusicService {
     }
   }
 
-  /// 0 = silent, 1..[levels] = quiet pad .. full mix (top combo).
+  /// 0 = silent, 1..[levels] = quiet pad .. full Fever mix.
   Future<void> setIntensity(int level) async {
     level = level.clamp(0, levels);
     _wanted = level;

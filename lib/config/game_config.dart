@@ -37,6 +37,7 @@ class GameConfig {
         raw['locks'] as Map<String, dynamic>,
         'setBonusPerLock',
       ),
+      fever = FeverConfig._(raw['fever'] as Map<String, dynamic>),
       powerUps = PowerUpConfig._(raw['powerUps'] as Map<String, dynamic>),
       boss = BossConfig._(raw['boss'] as Map<String, dynamic>),
       worlds = WorldsConfig._(raw['worlds'] as Map<String, dynamic>),
@@ -78,6 +79,7 @@ class GameConfig {
   final GhostConfig ghost;
   final BonusZoneConfig bonusZone;
   final int setBonusPerLock;
+  final FeverConfig fever;
   final PowerUpConfig powerUps;
   final BossConfig boss;
   final WorldsConfig worlds;
@@ -285,6 +287,17 @@ class BonusZoneConfig {
   final double size;
   final double minWindow;
   final int points;
+}
+
+class FeverConfig {
+  FeverConfig._(Map<String, dynamic> m)
+    : perfectStreak = _i(m, 'perfectStreak'),
+      pointsMultiplier = _i(m, 'pointsMultiplier'),
+      speedFactor = _d(m, 'speedFactor');
+
+  final int perfectStreak;
+  final int pointsMultiplier;
+  final double speedFactor;
 }
 
 class PowerUpConfig {

@@ -45,7 +45,6 @@ const intros = <String, (String, String)>{
   'not': ('NOT!', 'hit any color except this one'),
   'split': ('SPLIT', 'left color first, then right, in one lap'),
   'ghost': ('GHOST', 'zones blink: remember where they are'),
-  'surge': ('SURGE', 'the pointer speeds up and slows down'),
   'spin': ('SPIN', 'the ring turns too'),
   'reverse': ('REVERSE', 'the pointer flips after each hit'),
   'greedy': ('GREEDY', 'thin gold zone = +5, or play it safe'),
@@ -132,6 +131,11 @@ class StreakEvent extends GameEvent {
 class NewBestEvent extends GameEvent {
   const NewBestEvent(this.score);
   final int score;
+}
+
+class FeverEvent extends GameEvent {
+  const FeverEvent(this.active);
+  final bool active;
 }
 
 class PowerUpEvent extends GameEvent {
@@ -232,6 +236,7 @@ class RunSummary {
     this.mode = RunMode.endless,
     this.hits = 0,
     this.bossesCleared = 0,
+    this.fevers = 0,
     this.bestMultiplier = 1,
     this.powerUps = 0,
     this.notCleared = 0,
@@ -248,6 +253,7 @@ class RunSummary {
   /// Successful taps (steps of split / boss rounds count separately).
   final int hits;
   final int bossesCleared;
+  final int fevers;
 
   /// Highest combo multiplier reached.
   final int bestMultiplier;
@@ -330,6 +336,9 @@ class GameEngine extends ChangeNotifier {
   int bestAtRunStart = 0;
   bool newBestReached = false;
 
+  /// Fever: a Perfect streak doubles points and speeds the pointer up.
+  bool fever = false;
+
   /// Power-ups: one stored shield, and rounds left of Slow-mo / Wide.
   bool shield = false;
   int slowRounds = 0;
@@ -366,6 +375,7 @@ class GameEngine extends ChangeNotifier {
   // Per-run stats for missions and achievements.
   int hits = 0;
   int bossesCleared = 0;
+  int fevers = 0;
   int bestMultiplier = 1;
   int powerUpsCollected = 0;
   int notCleared = 0;
@@ -415,6 +425,7 @@ class GameEngine extends ChangeNotifier {
       mode: mode,
       hits: hits,
       bossesCleared: bossesCleared,
+      fevers: fevers,
       bestMultiplier: bestMultiplier,
       powerUps: powerUpsCollected,
       notCleared: notCleared,
@@ -489,9 +500,11 @@ class GameEngine extends ChangeNotifier {
               perks.coinScale)
           .round();
 
-  /// Perfects in a row per combo step (Quick Combo lowers it).
-  int get comboStep =>
-      perks.comboStep(math.max(1, config.scoring.perfectsPerMultiplierStep));
+  /// Perfects in a row that start Fever (Hot Streak lowers it).
+  int get feverGoal => perks.feverGoal(config.fever.perfectStreak);
+
+  /// Perfects in a row per combo step.
+  int get comboStep => math.max(1, config.scoring.perfectsPerMultiplierStep);
 
   /// Perks can be picked after bosses in these modes.
   bool get perksEnabled =>
@@ -539,6 +552,7 @@ class GameEngine extends ChangeNotifier {
     this.beatScore = beatScore;
     hits = 0;
     bossesCleared = 0;
+    fevers = 0;
     bestMultiplier = 1;
     powerUpsCollected = 0;
     notCleared = 0;
@@ -560,6 +574,7 @@ class GameEngine extends ChangeNotifier {
     runStart = time;
     bestAtRunStart = best;
     newBestReached = false;
+    fever = false;
     shield = false;
     slowRounds = 0;
     wideRounds = 0;
@@ -586,6 +601,7 @@ class GameEngine extends ChangeNotifier {
     mode = RunMode.endless;
     if (round != null) _idleAngle = round!.pointerAngleAt(time);
     round = null;
+    fever = false;
     effects.clear();
     effects.glowTarget = 0;
     _setPhase(GamePhase.home);
@@ -676,6 +692,8 @@ class GameEngine extends ChangeNotifier {
     final perfect = j.kind == HitKind.perfect;
     final boss = r.spec.kind == RoundKind.boss;
 
+    // Fever applies from the hit after it starts.
+    final feverBefore = fever;
     final multiplierBefore = multiplier;
     if (perfect) {
       perfects++;
@@ -698,6 +716,7 @@ class GameEngine extends ChangeNotifier {
     if (zone.isBonus) base += config.bonusZone.points;
     if (boss) base += config.boss.stepPoints;
     var points = base * multiplier;
+    if (feverBefore) points *= config.fever.pointsMultiplier;
     points = (points * perks.pointsScale).round();
     score += points;
     hits++;
@@ -773,6 +792,23 @@ class GameEngine extends ChangeNotifier {
       _emit(StreakEvent(word, perfectStreak));
     }
     if (coinBonus > 0) effects.texts.add(FloatingText('+$coinBonus coins', -1));
+
+    if (perfect && !fever && perfectStreak >= feverGoal) {
+      fever = true;
+      fevers++;
+      effects.waves.add(
+        Shockwave(0, 0, zone.color, maxRadius: 2.6, life: 0.8, width: 0.08),
+      );
+      effects.banner = Announcement(
+        'FEVER!',
+        subtitle: 'x${config.fever.pointsMultiplier} points',
+        color: zone.color,
+        life: 1.2,
+      );
+      _emit(const FeverEvent(true));
+    } else if (!perfect && fever) {
+      _endFever();
+    }
 
     final p = zone.powerUp;
     if (p != null) _collect(p);
@@ -853,7 +889,7 @@ class GameEngine extends ChangeNotifier {
     }
     effects.glowTarget = math.min(
       1.0,
-      perfectStreak * 0.12 + math.min(level, 120) / 240,
+      perfectStreak * 0.12 + math.min(level, 120) / 240 + (fever ? 0.4 : 0),
     );
 
     if (targetRounds != null && level >= targetRounds!) {
@@ -923,6 +959,7 @@ class GameEngine extends ChangeNotifier {
   void _completeLevel(ActiveRound r, double t) {
     r.frozenAt = t;
     completed = true;
+    _endFever();
     final summary = _summary(t, r);
     coinsBanked = summary.coinsEarned;
     lastSummary = summary;
@@ -952,6 +989,12 @@ class GameEngine extends ChangeNotifier {
     _emit(PowerUpEvent(p));
   }
 
+  void _endFever() {
+    if (!fever) return;
+    fever = false;
+    _emit(const FeverEvent(false));
+  }
+
   void _newSet() {
     final stage = config.stageFor(level);
     final spread = math.max(1, stage.maxLocks - stage.minLocks + 1);
@@ -970,6 +1013,7 @@ class GameEngine extends ChangeNotifier {
   }) {
     final pu = config.powerUps;
     var speed = perks.speedScale;
+    if (fever) speed *= config.fever.speedFactor;
     if (slowRounds > 0) speed *= pu.slowFactor;
     final local = wrapAngle(pointer - ring);
     final spec = _generator!.next(
@@ -1034,7 +1078,6 @@ class GameEngine extends ChangeNotifier {
       if (spec.kind == RoundKind.inverted) 'not',
       if (spec.kind == RoundKind.split) 'split',
       if (spec.ghost) 'ghost',
-      if (spec.pulseAmplitude > 0) 'surge',
       if (spec.ringSpeed != 0) 'spin',
       if (!isFirst && level > 0 && spec.pointerDir != previousDir) 'reverse',
       if (spec.zones.any((z) => z.isBonus)) 'greedy',
@@ -1103,6 +1146,7 @@ class GameEngine extends ChangeNotifier {
       perfectStreak = 0;
       multiplier = 1;
       _multiplierBase = 1;
+      _endFever();
       effects.shake = 0.4;
       effects.texts.add(FloatingText(j.timeout ? 'MISSED IT' : 'MISS', -1));
       _emit(const ZenMissEvent());
@@ -1124,6 +1168,7 @@ class GameEngine extends ChangeNotifier {
       perfectStreak = 0;
       multiplier = 1;
       _multiplierBase = 1;
+      _endFever();
       effects.shieldFlash = 1;
       effects.shake = 0.5;
       _emit(const ShieldSavedEvent());
@@ -1151,6 +1196,7 @@ class GameEngine extends ChangeNotifier {
     perfectStreak = 0;
     multiplier = 1;
     _multiplierBase = 1;
+    _endFever();
     effects.shake = 1;
     effects.glowTarget = 0;
     final summary = _summary(t, r);

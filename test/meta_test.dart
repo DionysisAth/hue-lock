@@ -157,7 +157,7 @@ void main() {
       expect(got, containsAll(['first_lock', 'score_50', 'score_250']));
       expect(got, isNot(contains('score_1000')));
       expect(checkAchievements(p), isEmpty, reason: 'only once');
-      expect(achievementDefs.map((a) => a.id).toSet(), hasLength(18));
+      expect(achievementDefs.map((a) => a.id).toSet(), hasLength(19));
     });
   });
 
