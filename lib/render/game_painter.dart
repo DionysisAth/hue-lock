@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -9,6 +11,7 @@ import '../game/round.dart';
 import 'ball_skins.dart';
 import 'palette.dart';
 import 'ring_themes.dart';
+import 'text_sprites.dart';
 
 /// Where the ring sits for a given screen size (portrait, notch-safe because
 /// the ring is centered well away from the edges).
@@ -47,6 +50,7 @@ class GamePainter extends CustomPainter {
     required this.palette,
     required this.colorblind,
     required Listenable repaint,
+    this.pixelRatio = 2,
   }) : super(repaint: repaint);
 
   final GameEngine engine;
@@ -54,6 +58,9 @@ class GamePainter extends CustomPainter {
   final BallSkin skin;
   final HuePalette palette;
   final bool colorblind;
+
+  /// Device pixel ratio, so cached text sprites stay crisp.
+  final double pixelRatio;
 
   // Ring-space angle 0 is "up"; Canvas.drawArc's 0 is "right".
   static double _arcStart(double a) => a - math.pi / 2;
@@ -134,7 +141,9 @@ class GamePainter extends CustomPainter {
           alpha: ghostAlpha,
         );
       }
-      if (!dead) _paintSweetSpots(canvas, layout, ringW, round, ringAngle);
+      if (!dead) {
+        _paintSweetSpots(canvas, layout, ringW, round, ringAngle, ghostAlpha);
+      }
       if (dead) {
         final pulse = 0.5 + 0.5 * math.sin(engine.phaseElapsed * 14);
         _paintZone(
@@ -149,30 +158,42 @@ class GamePainter extends CustomPainter {
       }
     }
 
-    // Lock flashes (zones that were just hit).
+    // Lock flashes (zones that were just hit). The glow is a wider, fainter
+    // stroke rather than a blur, which would cost an offscreen pass on
+    // every frame of every flash.
+    final ringRect = Rect.fromCircle(center: c, radius: r);
     for (final l in fx.locks) {
       final k = 1 - l.t;
       final w = ringW * (1 + 0.9 * l.t);
-      final paint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = w
-        ..color = Color.lerp(
-          palette[l.color],
-          Colors.white,
-          0.5,
-        )!.withValues(alpha: k * 0.9);
+      final color = Color.lerp(palette[l.color], Colors.white, 0.5)!;
+      final start = _arcStart(l.angle - l.width / 2);
       if (theme.glowStrength > 0) {
-        paint.maskFilter = MaskFilter.blur(
-          BlurStyle.normal,
-          4 + 8 * theme.glowStrength * (l.perfect ? 1.5 : 1),
-        );
+        // Two soft halos with round ends stand in for a blur.
+        final spread = theme.glowStrength * (l.perfect ? 1.5 : 1);
+        final glow = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round;
+        for (final (grow, a) in [(0.9, 0.16), (0.45, 0.22)]) {
+          canvas.drawArc(
+            ringRect,
+            start,
+            l.width,
+            false,
+            glow
+              ..strokeWidth = w * (1 + grow * spread)
+              ..color = color.withValues(alpha: k * a),
+          );
+        }
       }
       canvas.drawArc(
-        Rect.fromCircle(center: c, radius: r),
-        _arcStart(l.angle - l.width / 2),
+        ringRect,
+        start,
         l.width,
         false,
-        paint,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w
+          ..color = color.withValues(alpha: k * 0.9),
       );
     }
 
@@ -414,7 +435,8 @@ class GamePainter extends CustomPainter {
         '+${engine.config.bonusZone.points}',
         badge,
         ringW * 0.62,
-        color: _gold.withValues(alpha: alpha),
+        color: _gold,
+        opacity: alpha,
       );
     }
   }
@@ -782,80 +804,112 @@ class GamePainter extends CustomPainter {
     Offset center,
     double size, {
     Color? color,
+    double opacity = 1,
   }) {
-    final tp = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          color: color ?? theme.text,
-          fontSize: size,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
+    // Sizes that follow the ball's squash would change every frame; render
+    // at a whole font size and scale the cached sprite instead.
+    final base = math.max(1.0, size.ceilToDouble());
+    final sprite = TextSprites.get(
+      text,
+      color: color ?? theme.text,
+      fontSize: base,
+      letterSpacing: 1,
+      pixelRatio: pixelRatio,
+    );
+    sprite.paint(
+      canvas,
+      center - Offset(0, sprite.textHeight * size / base / 2),
+      scale: size / base,
+      opacity: opacity,
+    );
   }
 
+  /// Every particle in one draw call: shards, stars, confetti and dots are
+  /// all emitted as colored triangles. (Dozens of separate paths per frame
+  /// is what a Perfect used to cost.)
   void _paintParticles(Canvas canvas, RingLayout layout, Effects fx) {
-    final paint = Paint()..isAntiAlias = true;
+    if (fx.particles.isEmpty) return;
+    final pos = <double>[];
+    final colors = <int>[];
+    late int color;
+    void tri(double x0, double y0, double x1, double y1, double x2, double y2) {
+      pos.addAll([x0, y0, x1, y1, x2, y2]);
+      colors.addAll([color, color, color]);
+    }
+
     for (final p in fx.particles) {
       final base = p.color < 0 ? Colors.white : palette[p.color];
       final fade = p.shape == ParticleShape.confetti
           ? (1 - math.max(0, p.t - 0.7) / 0.3)
           : 1 - p.t;
-      paint.color = base.withValues(alpha: fade.clamp(0.0, 1.0));
-      final pos = layout.center + Offset(p.x, p.y) * layout.radius;
+      final alpha = fade.clamp(0.0, 1.0);
+      if (alpha <= 0) continue;
+      color = base.withValues(alpha: alpha).toARGB32();
+      final c = layout.center + Offset(p.x, p.y) * layout.radius;
       final size = p.size * layout.radius;
+      final cos = math.cos(p.rotation);
+      final sin = math.sin(p.rotation);
+      // Local (x, y) rotated by the particle's rotation, then placed.
+      double px(double x, double y) => c.dx + x * cos - y * sin;
+      double py(double x, double y) => c.dy + x * sin + y * cos;
       switch (p.shape) {
         case ParticleShape.dot:
-          canvas.drawCircle(pos, size * (1 - 0.5 * p.t), paint);
-        case ParticleShape.shard:
-          canvas.save();
-          canvas.translate(pos.dx, pos.dy);
-          canvas.rotate(p.rotation);
-          final s = size * (1 - 0.4 * p.t);
-          canvas.drawPath(
-            Path()
-              ..moveTo(-s, -s * 0.35)
-              ..lineTo(s, 0)
-              ..lineTo(-s * 0.6, s * 0.45)
-              ..close(),
-            paint,
-          );
-          canvas.restore();
-        case ParticleShape.star:
-          canvas.save();
-          canvas.translate(pos.dx, pos.dy);
-          canvas.rotate(p.rotation);
-          final s = size * math.sin(p.t * math.pi);
-          final path = Path();
-          for (var i = 0; i < 8; i++) {
-            final a = i * math.pi / 4;
-            final rr = i.isEven ? s : s * 0.28;
-            final q = Offset(math.cos(a), math.sin(a)) * rr;
-            i == 0 ? path.moveTo(q.dx, q.dy) : path.lineTo(q.dx, q.dy);
+          final r = size * (1 - 0.5 * p.t);
+          const n = 8;
+          for (var i = 0; i < n; i++) {
+            final a0 = i * 2 * math.pi / n;
+            final a1 = (i + 1) * 2 * math.pi / n;
+            tri(
+              c.dx,
+              c.dy,
+              c.dx + math.cos(a0) * r,
+              c.dy + math.sin(a0) * r,
+              c.dx + math.cos(a1) * r,
+              c.dy + math.sin(a1) * r,
+            );
           }
-          canvas.drawPath(path..close(), paint);
-          canvas.restore();
-        case ParticleShape.confetti:
-          canvas.save();
-          canvas.translate(pos.dx, pos.dy);
-          canvas.rotate(p.rotation);
-          // Flip in 3D: squash one axis with the spin.
-          canvas.scale(1, math.cos(p.rotation * 1.7).abs() * 0.8 + 0.2);
-          canvas.drawRect(
-            Rect.fromCenter(
-              center: Offset.zero,
-              width: size * 1.4,
-              height: size * 0.8,
-            ),
-            paint,
+        case ParticleShape.shard:
+          final s = size * (1 - 0.4 * p.t);
+          tri(
+            px(-s, -s * 0.35),
+            py(-s, -s * 0.35),
+            px(s, 0),
+            py(s, 0),
+            px(-s * 0.6, s * 0.45),
+            py(-s * 0.6, s * 0.45),
           );
-          canvas.restore();
+        case ParticleShape.star:
+          final s = size * math.sin(p.t * math.pi);
+          for (var i = 0; i < 8; i++) {
+            final a0 = i * math.pi / 4;
+            final a1 = (i + 1) * math.pi / 4;
+            final r0 = i.isEven ? s : s * 0.28;
+            final r1 = i.isEven ? s * 0.28 : s;
+            final x0 = math.cos(a0) * r0, y0 = math.sin(a0) * r0;
+            final x1 = math.cos(a1) * r1, y1 = math.sin(a1) * r1;
+            tri(c.dx, c.dy, px(x0, y0), py(x0, y0), px(x1, y1), py(x1, y1));
+          }
+        case ParticleShape.confetti:
+          // Flip in 3D: squash one axis with the spin.
+          final hw = size * 0.7;
+          final hh =
+              size * 0.4 * (math.cos(p.rotation * 1.7).abs() * 0.8 + 0.2);
+          final ax = px(-hw, -hh), ay = py(-hw, -hh);
+          final bx = px(hw, -hh), by = py(hw, -hh);
+          final cx = px(hw, hh), cy = py(hw, hh);
+          final dx = px(-hw, hh), dy = py(-hw, hh);
+          tri(ax, ay, bx, by, cx, cy);
+          tri(ax, ay, cx, cy, dx, dy);
       }
     }
+    if (pos.isEmpty) return;
+    final vertices = ui.Vertices.raw(
+      ui.VertexMode.triangles,
+      Float32List.fromList(pos),
+      colors: Int32List.fromList(colors),
+    );
+    canvas.drawVertices(vertices, BlendMode.dst, Paint());
+    vertices.dispose();
   }
 
   void _paintWaves(Canvas canvas, RingLayout layout, Effects fx) {
@@ -873,23 +927,32 @@ class GamePainter extends CustomPainter {
     }
   }
 
-  /// The Perfect window inside each target: a bright band to aim for.
+  /// The Perfect window inside every zone: a bright band to aim for. Drawn
+  /// on all zones alike (decoys and wrong colors too) so it never gives the
+  /// answer away.
   void _paintSweetSpots(
     Canvas canvas,
     RingLayout layout,
     double ringW,
     ActiveRound round,
     double ringAngle,
+    double alpha,
   ) {
     final spec = round.spec;
     final timing = engine.config.timing;
     final speed = spec.relativeSpeed.abs();
     final rect = Rect.fromCircle(center: layout.center, radius: layout.radius);
     final pulse = 0.75 + 0.25 * math.sin(engine.time * 6);
-    for (final g in round.currentStep.goals) {
-      if (round.consumed.contains(g)) continue;
-      final z = spec.zones[g];
-      if (z.isBonus) continue;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ringW * 0.38
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(
+        alpha: (engine.fever ? 0.7 : 0.45) * pulse * alpha,
+      );
+    for (var i = 0; i < spec.zones.length; i++) {
+      if (round.consumed.contains(i)) continue;
+      final z = spec.zones[i];
       final half = math.min(
         z.halfWidth,
         math.max(
@@ -898,19 +961,7 @@ class GamePainter extends CustomPainter {
         ),
       );
       final center = ringAngle + z.center;
-      canvas.drawArc(
-        rect,
-        _arcStart(center - half),
-        half * 2,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = ringW * 0.38
-          ..strokeCap = StrokeCap.round
-          ..color = Colors.white.withValues(
-            alpha: (engine.fever ? 0.7 : 0.45) * pulse,
-          ),
-      );
+      canvas.drawArc(rect, _arcStart(center - half), half * 2, false, paint);
     }
   }
 
@@ -984,24 +1035,13 @@ class GamePainter extends CustomPainter {
       final pop = text.huge
           ? Curves.elasticOut.transform((text.age / 0.45).clamp(0.0, 1.0))
           : 1.0;
-      final tp = TextPainter(
-        text: TextSpan(
-          text: text.text,
-          style: TextStyle(
-            color: color.withValues(alpha: 1 - text.t * text.t),
-            fontSize: math.max(
-              1,
-              (text.huge ? 44 : (text.big ? 30 : 20)) * pop,
-            ),
-            fontWeight: FontWeight.w900,
-            letterSpacing: 2,
-            shadows: theme.dark
-                ? [Shadow(color: color.withValues(alpha: 0.6), blurRadius: 12)]
-                : null,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
+      final sprite = TextSprites.get(
+        text.text,
+        color: color,
+        fontSize: text.huge ? 44 : (text.big ? 30 : 20),
+        glow: theme.dark ? 12 : 0,
+        pixelRatio: pixelRatio,
+      );
       // Below the ring, drifting upward, so it never covers the score HUD.
       final y =
           layout.center.dy +
@@ -1009,7 +1049,12 @@ class GamePainter extends CustomPainter {
           (fx.banner != null ? 64 : 0) +
           slot * 36 -
           k * 22;
-      tp.paint(canvas, Offset(layout.center.dx - tp.width / 2, y));
+      sprite.paint(
+        canvas,
+        Offset(layout.center.dx, y),
+        scale: pop,
+        opacity: 1 - text.t * text.t,
+      );
       slot++;
     }
   }
@@ -1028,45 +1073,36 @@ class GamePainter extends CustomPainter {
     final a = math.min(inT, outT);
     final scale = 0.8 + 0.2 * Curves.easeOutBack.transform(inT);
     final color = b.color < 0 ? theme.text : palette[b.color];
-    final title = TextPainter(
-      text: TextSpan(
-        text: b.title,
-        style: TextStyle(
-          color: color.withValues(alpha: a),
-          fontSize: 34 * scale,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 4,
-          shadows: theme.dark
-              ? [
-                  Shadow(
-                    color: color.withValues(alpha: 0.7 * a),
-                    blurRadius: 18,
-                  ),
-                ]
-              : null,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    final title = TextSprites.get(
+      b.title,
+      color: color,
+      fontSize: 34,
+      letterSpacing: 4,
+      glow: theme.dark ? 18 : 0,
+      glowAlpha: 0.7,
+      pixelRatio: pixelRatio,
+    );
     // Below the ring, so it never covers the HUD or the zones.
     final top = layout.center.dy + layout.radius + ringW * 1.6 + 6;
-    title.paint(canvas, Offset(layout.center.dx - title.width / 2, top));
+    title.paint(
+      canvas,
+      Offset(layout.center.dx, top),
+      scale: scale,
+      opacity: a,
+    );
     if (b.subtitle != null) {
-      final sub = TextPainter(
-        text: TextSpan(
-          text: b.subtitle,
-          style: TextStyle(
-            color: theme.subtleText.withValues(alpha: a),
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 3,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
+      final sub = TextSprites.get(
+        b.subtitle!,
+        color: theme.subtleText,
+        fontSize: 15,
+        weight: FontWeight.w800,
+        letterSpacing: 3,
+        pixelRatio: pixelRatio,
+      );
       sub.paint(
         canvas,
-        Offset(layout.center.dx - sub.width / 2, top + title.height + 2),
+        Offset(layout.center.dx, top + title.textHeight + 2),
+        opacity: a,
       );
     }
   }
@@ -1077,6 +1113,7 @@ class GamePainter extends CustomPainter {
       old.skin != skin ||
       old.palette != palette ||
       old.colorblind != colorblind ||
+      old.pixelRatio != pixelRatio ||
       old.engine != engine;
 }
 

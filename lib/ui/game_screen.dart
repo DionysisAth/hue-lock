@@ -16,6 +16,7 @@ import '../render/ball_skins.dart';
 import '../render/game_painter.dart';
 import '../render/palette.dart';
 import '../render/ring_themes.dart';
+import '../render/text_sprites.dart';
 import '../services/feedback.dart';
 import 'game_over_overlay.dart';
 import 'home_overlay.dart';
@@ -143,11 +144,33 @@ class _GameScreenState extends State<GameScreen>
           palette: HuePalette.standard,
           colorblind: true,
           repaint: _frame,
+          pixelRatio: 1,
         ).paint(canvas, const Size(400, 860));
         final picture = recorder.endRecording();
         final image = await picture.toImage(100, 215);
         image.dispose();
         picture.dispose();
+      }
+      // The texts every Perfect shows, as ready-made sprites.
+      if (!mounted) return;
+      final p = s.profile.profile;
+      final theme = ringThemeById(p.theme);
+      final palette = HuePalette.of(colorblind: p.colorblind);
+      final dpr = View.of(context).devicePixelRatio;
+      for (var c = 0; c < 4; c++) {
+        for (final word in [
+          'PERFECT',
+          for (var m = 2; m <= s.config.scoring.maxMultiplier; m++)
+            'PERFECT x$m',
+        ]) {
+          TextSprites.get(
+            word,
+            color: palette[c],
+            fontSize: 30,
+            glow: theme.dark ? 12 : 0,
+            pixelRatio: dpr,
+          );
+        }
       }
     } catch (err) {
       debugPrint('Effect warm-up failed: $err');
@@ -681,23 +704,28 @@ class _GameScreenState extends State<GameScreen>
             key: _shotKey,
             child: Stack(
               children: [
+                // The game repaints every frame on its own layer; the HUD
+                // and overlays only repaint when they change.
                 Positioned.fill(
                   child: Listener(
                     behavior: HitTestBehavior.opaque,
                     onPointerDown: _onPointerDown,
-                    child: CustomPaint(
-                      painter: GamePainter(
-                        engine: engine,
-                        theme: theme,
-                        skin: ballSkinById(p.ball),
-                        palette: palette,
-                        colorblind: p.colorblind,
-                        repaint: _frame,
+                    child: RepaintBoundary(
+                      child: CustomPaint(
+                        painter: GamePainter(
+                          engine: engine,
+                          theme: theme,
+                          skin: ballSkinById(p.ball),
+                          palette: palette,
+                          colorblind: p.colorblind,
+                          repaint: _frame,
+                          pixelRatio: MediaQuery.devicePixelRatioOf(context),
+                        ),
                       ),
                     ),
                   ),
                 ),
-                Positioned.fill(child: _overlay(theme)),
+                Positioned.fill(child: RepaintBoundary(child: _overlay(theme))),
                 if (engine.mode == RunMode.zen &&
                     engine.phase != GamePhase.home)
                   Positioned(

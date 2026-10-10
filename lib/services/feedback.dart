@@ -93,9 +93,13 @@ class AudioService {
 /// updaters would poll the platform every frame forever. We never need the
 /// playback position, so it is switched off.
 class _SfxPool {
-  _SfxPool(this._players);
+  _SfxPool(this._players) : _volumes = List.filled(_players.length, -1);
 
   final List<AudioPlayer> _players;
+
+  /// Last volume sent to each player. Every platform call runs on the same
+  /// thread as the UI on Android, so unchanged volumes are not re-sent.
+  final List<double> _volumes;
   int _next = 0;
 
   static Future<_SfxPool> load(String asset, {required int voices}) async {
@@ -111,10 +115,14 @@ class _SfxPool {
   }
 
   Future<void> play(double volume) async {
-    final p = _players[_next];
+    final i = _next;
+    final p = _players[i];
     _next = (_next + 1) % _players.length;
     await p.stop();
-    await p.setVolume(volume);
+    if (_volumes[i] != volume) {
+      _volumes[i] = volume;
+      await p.setVolume(volume);
+    }
     await p.resume();
   }
 }

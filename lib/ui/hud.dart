@@ -248,8 +248,11 @@ class _AnimatedScoreState extends State<AnimatedScore>
             clipBehavior: Clip.none,
             alignment: Alignment.center,
             children: [
+              // Scaled as a cached layer: scaling live text would
+              // re-rasterize its glyphs at a new size every frame.
               Transform.scale(
                 scale: scale,
+                filterQuality: scale == 1 ? null : FilterQuality.medium,
                 child: Text(
                   '${_anim.isAnimating ? _shown : widget.score}',
                   style: TextStyle(

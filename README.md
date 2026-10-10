@@ -50,7 +50,8 @@ Google Play Games / Game Center services, and duels work with a share code.
   - an edge glow and a richer chime that rises with the streak, plus a
     double-tick haptic
   - streak words ("NICE!", "INSANE!", "GODLIKE!") and a combo-up whoosh
-  The Perfect sweet spot is drawn inside each target, a meter shows the
+  The Perfect sweet spot is drawn inside every zone (decoys too, so it never
+  gives the answer away), a meter shows the
   streak toward Fever, and the score counts up with a "+N" pop. The ball
   morphs into the next color, the pointer leaves a trail, background dust
   speeds up with the combo, and a new best rains confetti.
