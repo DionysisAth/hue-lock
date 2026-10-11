@@ -132,23 +132,30 @@ void main() {
     await tester.tap(find.text('RINGS'));
     await waitFor(tester, find.text('Neon'));
     await tester.pageBack();
+    // Wait out the closing transition: until then the home screen is still
+    // scaled and its buttons are not where they will be.
+    await waitFor(tester, find.text('BALLS'), present: false);
     await waitFor(tester, find.text('TAP TO PLAY'));
 
     // 6. Progress and How to play.
     await tester.tap(find.byTooltip('Progress'));
     await waitFor(tester, find.text('MISSIONS'));
     await tester.pageBack();
+    await waitFor(tester, find.text('MISSIONS'), present: false);
     await waitFor(tester, find.text('TAP TO PLAY'));
     await tester.tap(find.byTooltip('How to play'));
     await waitFor(tester, find.text('THE BASICS'));
     await tester.pageBack();
+    await waitFor(tester, find.text('THE BASICS'), present: false);
     await waitFor(tester, find.text('TAP TO PLAY'));
 
     // 7. Levels: play level 1 to the end with perfect taps.
     await tester.tap(find.text('LEVELS'));
     await waitFor(tester, find.text('First Lock'));
+    await waitMs(tester, 600); // let the page finish sliding in
     await tester.tap(find.text('First Lock'));
     await waitFor(tester, find.text('PLAY'));
+    await waitMs(tester, 600);
     await tester.tap(find.text('PLAY'));
     await waitFor(tester, find.text('TAP TO PLAY'), present: false);
     final lv = engine();
@@ -171,6 +178,7 @@ void main() {
     await tester.tap(find.text('Colorblind mode'));
     await waitMs(tester, 200);
     await tester.pageBack();
+    await waitFor(tester, find.text('Colorblind mode'), present: false);
     await waitFor(tester, find.text('TAP TO PLAY'));
 
     await tester.tapAt(empty);
