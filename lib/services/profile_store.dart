@@ -8,6 +8,9 @@ class PlayerProfile {
   PlayerProfile();
 
   int bestScore = 0;
+
+  /// Rush mode best score.
+  int rushBest = 0;
   int coins = 0;
   int totalRuns = 0;
   int runsSinceInterstitial = 0;
@@ -21,6 +24,9 @@ class PlayerProfile {
   double musicVolume = 0.6;
   bool haptics = true;
   bool colorblind = false;
+
+  /// Focus button on the left (for left thumbs).
+  bool focusLeft = false;
   bool adsRemoved = false;
 
   /// Mechanics already explained to this player (see `intros`).
@@ -67,6 +73,7 @@ class PlayerProfile {
 
   Map<String, dynamic> toJson() => {
     'bestScore': bestScore,
+    'rushBest': rushBest,
     'coins': coins,
     'totalRuns': totalRuns,
     'runsSinceInterstitial': runsSinceInterstitial,
@@ -80,6 +87,7 @@ class PlayerProfile {
     'musicVolume': musicVolume,
     'haptics': haptics,
     'colorblind': colorblind,
+    'focusLeft': focusLeft,
     'adsRemoved': adsRemoved,
     'seenIntros': seenIntros.toList(),
     'xp': xp,
@@ -125,6 +133,7 @@ class PlayerProfile {
       rewardStreak = other.rewardStreak;
     }
     bestScore = bestScore > other.bestScore ? bestScore : other.bestScore;
+    rushBest = rushBest > other.rushBest ? rushBest : other.rushBest;
     totalRuns = totalRuns > other.totalRuns ? totalRuns : other.totalRuns;
     ownedBalls.addAll(other.ownedBalls);
     ownedThemes.addAll(other.ownedThemes);
@@ -158,6 +167,7 @@ class PlayerProfile {
     };
     return PlayerProfile()
       ..bestScore = get('bestScore', 0)
+      ..rushBest = get('rushBest', 0)
       ..coins = get('coins', 0)
       ..totalRuns = get('totalRuns', 0)
       ..runsSinceInterstitial = get('runsSinceInterstitial', 0)
@@ -171,6 +181,7 @@ class PlayerProfile {
       ..musicVolume = (j['musicVolume'] as num?)?.toDouble() ?? 0.6
       ..haptics = get('haptics', true)
       ..colorblind = get('colorblind', false)
+      ..focusLeft = get('focusLeft', false)
       ..adsRemoved = get('adsRemoved', false)
       ..seenIntros = {
         ...((j['seenIntros'] as List?) ?? const []).whereType<String>(),

@@ -32,6 +32,18 @@ CHAPTERS = [
         ("Warm-Up Run", "Clear the dots above the ball in a row for a set bonus.",
          {"colors": [2, 3], "locks": [2, 3]}, {}, None),
     ]),
+    ("Focus", {"coins": 100}, [
+        ("Slow Down", "Perfects fill the FOCUS button in the corner. Tap it to slow time while the meter lasts. Taps on it never count as a miss.",
+         {"colors": [1, 2]}, {"ease": 2}, ["focus:1", "streak:3"]),
+        ("Save It", "Focus runs out fast. Save it for the round that needs it.",
+         {"colors": [2, 2]}, {"ease": 1}, ["focus:1", "streak:4"]),
+        ("Twice as Calm", "Fill the meter again with Perfects, then use it again.",
+         {"colors": [2, 3]}, {}, ["focus:2", "perfects:5"]),
+        ("Tiny Targets", "Small zones. Slow time to land them.",
+         {"colors": [2, 3]}, {"sizeDelta": -10}, ["focus:2", "streak:4"]),
+        ("Steady Under Pressure", "Faster, with lock sets. Focus is your friend.",
+         {"colors": [2, 3], "locks": [2, 3]}, {"speedDelta": 5}, ["focus:2", "streak:5"]),
+    ]),
     ("Turnaround", {"coins": 50, "ball": "bullseye"}, [
         ("About Face", "REVERSE: the pointer flips direction after every hit.",
          {"colors": [1, 1], "reverse": 1}, {"ease": 1}, None),
@@ -43,6 +55,18 @@ CHAPTERS = [
          {"colors": [2, 3], "reverse": 0.8, "locks": [2, 3]}, {}, None),
         ("Turnabout", "Three colors, flips and lock sets together.",
          {"colors": [3, 3], "reverse": 0.7, "locks": [2, 4]}, {}, None),
+    ]),
+    ("Hold On", {"coins": 120, "tokens": 1}, [
+        ("Hold On", "HOLD: some targets are long, with a white mark at the end. Press when the pointer is in it, keep holding, and let go on the mark.",
+         {"colors": [1, 1], "hold": 1}, {"ease": 2}, ["holds:3", "perfects:2"]),
+        ("Let Go", "Letting go right on the white mark is a Perfect. Too soon is a miss.",
+         {"colors": [1, 2], "hold": 1}, {"ease": 1}, ["holds:5", "perfects:4"]),
+        ("Mix It Up", "Taps and holds, one after the other. Read each target.",
+         {"colors": [2, 2], "hold": 0.6}, {}, ["holds:3", "streak:4"]),
+        ("Hold and Turn", "Holds with a pointer that flips.",
+         {"colors": [2, 3], "hold": 0.7, "reverse": 0.6}, {}, ["holds:3", "streak:4"]),
+        ("Long Haul", "Lots of holds. Use Focus on the tough ones.",
+         {"colors": [2, 3], "hold": 0.7, "locks": [2, 3]}, {}, ["holds:6", "streak:5"]),
     ]),
     ("Gold Rush", {"coins": 150, "tokens": 1}, [
         ("Greedy", "GREEDY: a thin gold-rimmed zone is worth +5. Go for it, or wait for the safe one.",
@@ -154,15 +178,15 @@ CHAPTERS = [
     ]),
     ("Mastery", {"coins": 500, "tokens": 3}, [
         ("Chaos", "Everything you have learned, mixed.",
-         {"colors": [2, 4], "reverse": 0.5, "decoys": 1, "rotate": 0.4, "bonus": 0.2, "inverted": 0.2, "split": 0.2, "ghost": 0.2, "locks": [3, 4]}, {"powerUpChance": 0.15}, None),
+         {"colors": [2, 4], "hold": 0.2, "reverse": 0.5, "decoys": 1, "rotate": 0.4, "bonus": 0.2, "inverted": 0.2, "split": 0.2, "ghost": 0.2, "locks": [3, 4]}, {"powerUpChance": 0.15}, None),
         ("Gauntlet", "Longer, with a boss in the middle.",
          {"colors": [3, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.5, "inverted": 0.25, "split": 0.25, "ghost": 0.25, "locks": [3, 5]}, {"addTargets": 4, "bossEvery": 11, "bossLength": [4, 4]}, None),
-        ("Storm", "Fast spins and ghosts.",
-         {"colors": [3, 4], "reverse": 0.6, "rotate": 0.7, "ghost": 0.3, "decoys": 1}, {}, None),
+        ("Storm", "Fast spins, ghosts and holds.",
+         {"colors": [3, 4], "hold": 0.25, "reverse": 0.6, "rotate": 0.7, "ghost": 0.3, "decoys": 1}, {}, None),
         ("Endgame", "No mercy: decoys, splits and NOTs.",
          {"colors": [3, 4], "reverse": 0.6, "decoys": 1, "inverted": 0.35, "split": 0.35, "rotate": 0.4}, {}, None),
         ("Hue Master", "The final test. Three stars here means you have mastered Hue Lock.",
-         {"colors": [3, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.6, "inverted": 0.3, "split": 0.3, "ghost": 0.3, "bonus": 0.2, "locks": [4, 5]}, {"addTargets": 6, "bossEvery": 13, "bossLength": [4, 4]}, None),
+         {"colors": [3, 4], "hold": 0.2, "reverse": 0.6, "decoys": 1, "rotate": 0.6, "inverted": 0.3, "split": 0.3, "ghost": 0.3, "bonus": 0.2, "locks": [4, 5]}, {"addTargets": 6, "bossEvery": 13, "bossLength": [4, 4]}, None),
     ]),
 ]
 
@@ -182,9 +206,9 @@ def level(g, title, teaches, stage, extra, goals):
         "title": title,
         "teaches": teaches,
         "targets": targets,
-        "speed": round(90 + 1.1 * d),
+        "speed": round(90 + 1.1 * d) + extra.get("speedDelta", 0),
         "speedPerTarget": round(0.8 + 0.02 * d, 2),
-        "size": round(64 - 0.3 * d, 1),
+        "size": round(64 - 0.3 * d + extra.get("sizeDelta", 0), 1),
         "sizePerTarget": round(-0.1 - 0.006 * d, 3),
         "stage": stage,
     }
@@ -198,6 +222,8 @@ def level(g, title, teaches, stage, extra, goals):
             f"streak:{min(hits, 3 + d // 9)}",
         ]
     out["goals"] = goals
+    if extra.get("focus"):
+        out["focus"] = True
     return out
 
 
@@ -206,8 +232,10 @@ def main():
     g = 0
     for c, (title, reward, levels) in enumerate(CHAPTERS):
         built = []
-        for spec in levels:
-            built.append(level(g, *spec))
+        # Focus is available from the chapter that teaches it on.
+        focus = any(t == "Focus" for t, _, _ in CHAPTERS[: c + 1])
+        for title_, teaches, stage, extra, goals in levels:
+            built.append(level(g, title_, teaches, stage, {**extra, "focus": focus}, goals))
             g += 1
         chapters.append({
             "title": title,

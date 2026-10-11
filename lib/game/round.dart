@@ -30,6 +30,7 @@ class Zone {
     this.isBonus = false,
     this.hasCoin = false,
     this.powerUp,
+    this.hold = false,
   });
 
   final double center;
@@ -46,6 +47,9 @@ class Zone {
   final bool isBonus;
   final bool hasCoin;
   final PowerUp? powerUp;
+
+  /// Hold zone: press in it, hold, and let go at its far end.
+  final bool hold;
 
   double get halfWidth => width / 2;
 
@@ -150,6 +154,10 @@ class ActiveRound {
 
   /// Once set, the round is frozen at this time (death freeze-frame).
   double? frozenAt;
+
+  /// A hold zone is being held down (index into the zones), or -1.
+  int holdIndex = -1;
+  bool get holding => holdIndex >= 0;
 
   /// Current step and the zones already hit in earlier steps.
   int step = 0;

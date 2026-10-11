@@ -25,6 +25,7 @@ import 'how_to_play_screen.dart';
 import 'hud.dart';
 import 'levels_screen.dart';
 import 'mode_dialogs.dart';
+import 'focus_button.dart';
 import 'perk_overlay.dart';
 import 'progress_screen.dart';
 import 'settings_screen.dart';
@@ -238,9 +239,11 @@ class _GameScreenState extends State<GameScreen>
     s.music.setIntensity(intensity);
   }
 
+  /// Tempo rises with the stage; Focus slows the music down with the game.
   void _updateTempo() {
     final w = s.config.worlds;
-    s.music.setTempo(math.min(w.maxTempo, 1 + w.tempoStep * engine.world));
+    final tempo = math.min(w.maxTempo, 1 + w.tempoStep * engine.world);
+    s.music.setTempo(engine.focusActive ? tempo * 0.8 : tempo);
   }
 
   void _onTick(Duration _) {
@@ -264,16 +267,28 @@ class _GameScreenState extends State<GameScreen>
   /// Maps the input event's own timestamp onto the game clock, so the hit is
   /// judged where the pointer was when the finger landed, not at the next
   /// frame.
-  double _tapTime(PointerDownEvent e) {
+  /// Real seconds are scaled to game seconds (Focus slows the game clock).
+  double _tapTime(PointerEvent e) {
+    final scale = engine.timeScale;
     final last = _lastFrameStamp;
     if (last != null) {
       final delta = (e.timeStamp - last).inMicroseconds / 1e6;
       if (delta >= -s.config.timing.maxTapLookback && delta <= 0.1) {
-        return engine.time + delta;
+        return engine.time + delta * scale;
       }
     }
     // Timestamp unusable (clock mismatch): best estimate is "now".
-    return engine.time + math.min(_sinceFrame.elapsedMicroseconds / 1e6, 0.05);
+    return engine.time +
+        math.min(_sinceFrame.elapsedMicroseconds / 1e6, 0.05) * scale;
+  }
+
+  /// The finger holding a hold zone (only its lift releases it).
+  int? _holdPointer;
+
+  void _onPointerUp(PointerEvent e) {
+    if (e.pointer != _holdPointer) return;
+    _holdPointer = null;
+    engine.release(_tapTime(e));
   }
 
   void _onPointerDown(PointerDownEvent e) {
@@ -281,6 +296,7 @@ class _GameScreenState extends State<GameScreen>
     switch (engine.phase) {
       case GamePhase.playing:
         engine.tap(_tapTime(e));
+        if (engine.round?.holding ?? false) _holdPointer ??= e.pointer;
       case GamePhase.home:
         _startEndless();
       case GamePhase.gameOver:
@@ -335,6 +351,12 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
+  void _startRush() {
+    _prepare();
+    _level = null;
+    engine.startRun(best: s.profile.profile.rushBest, mode: RunMode.rush);
+  }
+
   void _startDuel(int seed, int target) {
     _prepare();
     _level = null;
@@ -353,6 +375,7 @@ class _GameScreenState extends State<GameScreen>
       config: level.configFrom(s.config),
       targetRounds: level.targets,
       starGoals: level.goals,
+      focus: level.focus,
     );
   }
 
@@ -368,6 +391,8 @@ class _GameScreenState extends State<GameScreen>
       case RunMode.endless:
         _prepare();
         engine.restart(best: s.profile.profile.bestScore);
+      case RunMode.rush:
+        _startRush();
       case RunMode.zen:
       case RunMode.duel:
         _prepare();
@@ -426,6 +451,27 @@ class _GameScreenState extends State<GameScreen>
           s.haptics.celebrate();
         }
         _updateMusic();
+      case FocusEvent(:final active):
+        if (active) {
+          s.audio.play(Sfx.focus);
+          s.haptics.tick();
+        }
+        _updateTempo();
+      case HoldStartEvent():
+        s.haptics.tick();
+      case RushMissEvent():
+        s.audio.play(Sfx.comboLost);
+        s.haptics.fail();
+      case TimeUpEvent(:final summary):
+        s.music.cut();
+        final best = summary.score > s.profile.profile.rushBest;
+        s.audio.play(best ? Sfx.newBest : Sfx.stage);
+        s.haptics.celebrate();
+        s.profile.update((p) {
+          p.rushBest = math.max(p.rushBest, summary.score);
+          p.coins += summary.newCoins;
+        });
+        s.analytics.log('rush_end', {'score': summary.score});
       case PowerUpEvent(:final powerUp):
         s.audio.play(Sfx.powerUp);
         s.analytics.log('power_up', {'type': powerUp.name});
@@ -562,6 +608,8 @@ class _GameScreenState extends State<GameScreen>
         s.gameServices.submitEndless(summary.score);
       case RunMode.daily:
         s.gameServices.submitDaily(summary.score);
+      case RunMode.rush:
+        s.gameServices.submitRush(summary.score);
       case RunMode.zen:
       case RunMode.duel:
       case RunMode.level:
@@ -792,6 +840,14 @@ class _GameScreenState extends State<GameScreen>
     return c.unlockStars - totalStars(p.levelStars);
   }
 
+  /// The Focus button shows during play once Focus is available.
+  bool get _showFocusButton {
+    final e = engine;
+    final playing =
+        e.phase == GamePhase.playing || e.phase == GamePhase.countdown;
+    return playing && e.focusEnabled && e.mode != RunMode.zen;
+  }
+
   bool get _progressBadge {
     final p = s.profile.profile;
     return canClaimDailyReward(p, DateTime.now()) ||
@@ -822,6 +878,8 @@ class _GameScreenState extends State<GameScreen>
                   child: Listener(
                     behavior: HitTestBehavior.opaque,
                     onPointerDown: _onPointerDown,
+                    onPointerUp: _onPointerUp,
+                    onPointerCancel: _onPointerUp,
                     child: RepaintBoundary(
                       child: CustomPaint(
                         painter: GamePainter(
@@ -838,6 +896,22 @@ class _GameScreenState extends State<GameScreen>
                   ),
                 ),
                 Positioned.fill(child: RepaintBoundary(child: _overlay(theme))),
+                if (_showFocusButton)
+                  Positioned(
+                    right: p.focusLeft ? null : 18,
+                    left: p.focusLeft ? 18 : null,
+                    bottom: 0,
+                    child: SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 18),
+                        child: FocusButton(
+                          engine: engine,
+                          frame: _frame,
+                          theme: theme,
+                        ),
+                      ),
+                    ),
+                  ),
                 if (engine.mode == RunMode.zen &&
                     engine.phase != GamePhase.home)
                   Positioned(
@@ -883,6 +957,7 @@ class _GameScreenState extends State<GameScreen>
           onLevels: _openLevels,
           onDaily: _openDaily,
           onZen: _startZen,
+          onRush: _startRush,
           onDuel: _openDuel,
           onShop: () => _open<void>(const ShopScreen()),
           onProgress: () => _open<void>(const ProgressScreen()),
@@ -955,7 +1030,11 @@ class _GameScreenState extends State<GameScreen>
                 ? _gateFor(levels[level.index + 1], p)
                 : null,
             rewardText: _rewardText,
-            best: mode == RunMode.daily ? p.dailyBest : p.bestScore,
+            best: switch (mode) {
+              RunMode.daily => p.dailyBest,
+              RunMode.rush => p.rushBest,
+              _ => p.bestScore,
+            },
             coins: p.coins,
             tokens: p.tokens,
             continueCost: s.config.continues.coinCost,

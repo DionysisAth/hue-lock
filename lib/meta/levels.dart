@@ -57,6 +57,7 @@ class LevelDef {
     required this.targets,
     required this.overrides,
     required this.goals,
+    this.focus = false,
   });
 
   /// 0-based position in the whole list; also the run seed.
@@ -75,6 +76,9 @@ class LevelDef {
 
   /// The goals for the second and third star (the first is for clearing).
   final List<StarGoal> goals;
+
+  /// The Focus button is available (from the chapter that teaches it on).
+  final bool focus;
 
   int get chapter => chapterDef.index;
   String get chapterTitle => chapterDef.title;
@@ -100,6 +104,7 @@ const _stageDefaults = <String, dynamic>{
   'split': 0.0,
   'ghost': 0.0,
   'pulse': 0.0,
+  'hold': 0.0,
 };
 
 List<LevelDef> parseLevels(String source) {
@@ -157,6 +162,7 @@ List<LevelDef> parseLevels(String source) {
         teaches: l['teaches'] as String,
         targets: (l['targets'] as num).toInt(),
         overrides: overrides,
+        focus: l['focus'] == true,
         goals: [
           for (final g
               in (l['goals'] as List?) ?? const ['ratio:50', 'ratio:80'])

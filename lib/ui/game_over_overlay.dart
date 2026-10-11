@@ -108,6 +108,15 @@ class GameOverOverlay extends StatelessWidget {
         ),
       ];
     }
+    if (mode == RunMode.rush && summary != null) {
+      return [
+        Text('TIME UP', style: _big(HuePalette.standard[2], 24)),
+        Text(
+          '${summary.hits} hits · ${summary.perfects} Perfects',
+          style: hudLabel(theme, size: 13),
+        ),
+      ];
+    }
     if (mode == RunMode.duel && summary != null) {
       final target = engine.beatScore ?? 0;
       final won = summary.score > target;
@@ -117,6 +126,12 @@ class GameOverOverlay extends StatelessWidget {
           style: _big(won ? HuePalette.standard[3] : HuePalette.standard[0]),
         ),
         Text('${summary.score} vs $target', style: hudLabel(theme, size: 13)),
+      ];
+    }
+    if (miss != null && miss.letGo) {
+      return [
+        Text('LET GO TOO SOON', style: _big(HuePalette.standard[2], 22)),
+        Text('hold until the white mark', style: hudLabel(theme, size: 13)),
       ];
     }
     if (miss != null && miss.nearMiss) {
@@ -175,9 +190,9 @@ class GameOverOverlay extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (mode == RunMode.daily)
+                        if (mode == RunMode.daily || mode == RunMode.rush)
                           Text(
-                            'DAILY CHALLENGE',
+                            mode == RunMode.rush ? 'RUSH' : 'DAILY CHALLENGE',
                             style: hudLabel(theme, size: 12),
                           ),
                         if (mode == RunMode.level && level != null)

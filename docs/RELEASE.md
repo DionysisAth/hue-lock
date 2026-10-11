@@ -93,8 +93,8 @@ screen, tracking prompt), but it can't be built here. You need:
 
 ## 4. Leaderboards and cloud save (Google Play Games, free)
 
-The code is in place: three leaderboards (Endless best, Daily Challenge,
-Level stars), a weekly rank on the home screen, "N points to pass <player>"
+The code is in place: four leaderboards (Endless best, Daily Challenge,
+Rush, Level stars), a weekly rank on the home screen, "N points to pass <player>"
 on the game-over screen, achievements, and cloud save that merges progress
 across devices. It switches on once the game exists in Play Games Services.
 This needs the app created in Play Console first (section 1, step 3).
@@ -113,11 +113,12 @@ This needs the app created in Play Console first (section 1, step 3).
      test APKs, which CI signs with the upload key once its secrets are set.
 3. **Saved Games:** in Configuration → Properties, turn **Saved Games** on.
    This is the cloud save.
-4. **Leaderboards → Add leaderboard,** three times (all "Larger is
+4. **Leaderboards → Add leaderboard,** four times (all "Larger is
    better", format "Numeric"):
    - `Endless`: the best Endless score
    - `Daily Challenge`
-   - `Level stars`: limit it to 0 – 180
+   - `Rush`: one-minute mode
+   - `Level stars`: limit it to 0 – 210
 
    Play Games keeps daily, weekly and all-time views of each one.
 5. **Achievements (optional):** one per entry in `achievementDefs` in
@@ -136,8 +137,8 @@ This needs the app created in Play Console first (section 1, step 3).
    [store/listing.md](store/listing.md#data-safety-form-play)).
 
 iOS uses Game Center instead: enable the Game Center capability in Xcode and
-create the same three leaderboards in App Store Connect with the ids
-`hue_lock_endless`, `hue_lock_daily` and `hue_lock_stars`.
+create the same four leaderboards in App Store Connect with the ids
+`hue_lock_endless`, `hue_lock_daily`, `hue_lock_rush` and `hue_lock_stars`.
 
 ## Checklist before pressing "Publish"
 

@@ -7,6 +7,8 @@ enum GoalType {
   greedy,
   fevers,
   combo,
+  focus,
+  holds,
   powerUps,
   shield,
 }
@@ -17,7 +19,7 @@ class StarGoal {
   const StarGoal(this.type, [this.target = 1]);
 
   /// "perfects:5", "streak:4", "ratio:60", "greedy:2", "fevers:1", "combo:3",
-  /// "powerUps:2" or "shield".
+  /// "focus:1", "holds:3", "powerUps:2" or "shield".
   factory StarGoal.parse(String source) {
     final parts = source.split(':');
     final type = GoalType.values.firstWhere(
@@ -39,6 +41,9 @@ class StarGoal {
     GoalType.fevers =>
       target == 1 ? 'Trigger Fever' : 'Trigger Fever $target times',
     GoalType.combo => 'Reach combo x$target',
+    GoalType.focus => target == 1 ? 'Use Focus' : 'Use Focus $target times',
+    GoalType.holds =>
+      target == 1 ? 'Clear a hold zone' : 'Clear $target hold zones',
     GoalType.powerUps =>
       target == 1 ? 'Collect a power-up' : 'Collect $target power-ups',
     GoalType.shield => 'Finish with a shield',
@@ -52,6 +57,8 @@ class StarGoal {
     GoalType.greedy => 'GOLD',
     GoalType.fevers => 'FEVER',
     GoalType.combo => 'COMBO',
+    GoalType.focus => 'FOCUS',
+    GoalType.holds => 'HOLDS',
     GoalType.powerUps => 'POWER-UPS',
     GoalType.shield => 'SHIELD',
   };
@@ -64,6 +71,8 @@ class StarGoal {
     GoalType.greedy => s.greedyHits,
     GoalType.fevers => s.fevers,
     GoalType.combo => s.bestMultiplier,
+    GoalType.focus => s.focusUses,
+    GoalType.holds => s.holdsCleared,
     GoalType.powerUps => s.powerUps,
     GoalType.shield => s.shieldLeft ? 1 : 0,
   };

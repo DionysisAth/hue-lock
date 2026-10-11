@@ -431,7 +431,7 @@ final achievementDefs = <AchievementDef>[
     'levels_all',
     'Graduate',
     'Clear every level',
-    (p) => p.stat(Stat.levelsDone) >= 60,
+    (p) => p.stat(Stat.levelsDone) >= 70,
   ),
   AchievementDef(
     'level_10',
@@ -543,7 +543,9 @@ List<NextGoal> nextGoals(
   if (s.mode == RunMode.zen || s.mode == RunMode.level) return const [];
   final out = <NextGoal>[];
 
-  if ((s.mode == RunMode.endless || s.mode == RunMode.daily) &&
+  if ((s.mode == RunMode.endless ||
+          s.mode == RunMode.daily ||
+          s.mode == RunMode.rush) &&
       best > 0 &&
       s.score <= best) {
     out.add(
@@ -570,7 +572,7 @@ List<NextGoal> nextGoals(
       ),
     );
   }
-  if (bossEvery > 0 && s.level > 0) {
+  if (bossEvery > 0 && s.level > 0 && s.mode != RunMode.rush) {
     final into = s.level % bossEvery;
     out.add(
       into == 0

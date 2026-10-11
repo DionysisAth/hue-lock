@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:hue_lock/config/game_config.dart';
+import 'package:hue_lock/core/angles.dart';
 import 'package:hue_lock/game/game_engine.dart';
 
 GameConfig loadTestConfig([Map<String, dynamic>? overrides]) {
@@ -45,10 +46,14 @@ void waitUntilPlaying(GameEngine engine) {
 }
 
 /// Plays one step like a perfect player: taps at the center of the current
-/// step's target.
+/// step's target (hold zones: presses early in it, lets go on its end).
 void tapTargetCenter(GameEngine engine) {
   waitUntilPlaying(engine);
   final target = engine.round!.currentPrimary;
+  if (target.hold) {
+    holdThrough(engine);
+    return;
+  }
   advance(engine, timeUntil(engine, target.center) * 0.5);
   // Re-aim after the frames went by,
   // then tap timestamped exactly at the center crossing, between frames.
@@ -62,4 +67,17 @@ void clearRounds(GameEngine engine, int rounds) {
   while (engine.level < goal && guard++ < rounds * 6) {
     tapTargetCenter(engine);
   }
+}
+
+/// Presses a hold zone near its start and lets go exactly on its far end.
+void holdThrough(GameEngine engine) {
+  final r = engine.round!;
+  final z = r.currentPrimary;
+  final dir = r.spec.pointerDir;
+  final press = wrapAngle(z.center - dir * z.halfWidth * 0.6);
+  advance(engine, timeUntil(engine, press) * 0.5);
+  engine.tap(engine.time + timeUntil(engine, press));
+  final end = wrapAngle(z.center + dir * z.halfWidth);
+  advance(engine, timeUntil(engine, end) * 0.5);
+  engine.release(engine.time + timeUntil(engine, end));
 }

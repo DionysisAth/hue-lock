@@ -23,6 +23,9 @@ abstract final class GameServiceIds {
   static const endlessLeaderboard = (android: '', ios: 'hue_lock_endless');
   static const dailyLeaderboard = (android: '', ios: 'hue_lock_daily');
 
+  /// Rush mode (one minute).
+  static const rushLeaderboard = (android: '', ios: 'hue_lock_rush');
+
   /// Total stars on the Levels map.
   static const starsLeaderboard = (android: '', ios: 'hue_lock_stars');
 
@@ -87,6 +90,12 @@ class GameServices extends ChangeNotifier {
     );
     await refreshRank();
   }
+
+  Future<void> submitRush(int score) => _submit(
+    GameServiceIds.rushLeaderboard.android,
+    GameServiceIds.rushLeaderboard.ios,
+    score,
+  );
 
   Future<void> submitStars(int stars) => _submit(
     GameServiceIds.starsLeaderboard.android,

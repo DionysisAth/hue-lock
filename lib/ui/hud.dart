@@ -65,6 +65,7 @@ class Hud extends StatelessWidget {
       RunMode.daily =>
         'DAILY CHALLENGE #${dailyNumber(dailyChallengeDay(DateTime.now().toUtc()))}',
       RunMode.zen => 'ZEN · NO GAME OVER',
+      RunMode.rush => 'RUSH · BEST ${e.bestAtRunStart}',
       RunMode.duel => 'DUEL · BEAT ${e.beatScore ?? 0}',
       RunMode.level =>
         level == null
@@ -157,6 +158,8 @@ class Hud extends StatelessWidget {
                 _LiveGoals(engine: e, theme: theme)
               else if (zen)
                 Text('HITS', style: hudLabel(theme))
+              else if (e.mode == RunMode.rush)
+                _RushClock(seconds: e.rushLeft.ceil(), theme: theme)
               else if (e.mode == RunMode.duel)
                 Text(
                   e.score > (e.beatScore ?? 0)
@@ -183,6 +186,28 @@ class Hud extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Rush: seconds left (red in the last ten). Rebuilt once a second.
+class _RushClock extends StatelessWidget {
+  const _RushClock({required this.seconds, required this.theme});
+
+  final int seconds;
+  final RingTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final low = seconds <= 10;
+    return Text(
+      '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}',
+      style: TextStyle(
+        color: low ? HuePalette.standard[0] : theme.text,
+        fontSize: 22,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 2,
       ),
     );
   }

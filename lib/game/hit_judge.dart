@@ -17,6 +17,7 @@ class Judgement {
     this.missBySeconds = 0,
     this.early = false,
     this.timeout = false,
+    this.letGo = false,
   });
 
   /// The fuse burnt out: the pointer passed the target without a tap.
@@ -28,7 +29,8 @@ class Judgement {
       nearMiss = false,
       missBySeconds = 0,
       early = false,
-      timeout = true;
+      timeout = true,
+      letGo = false;
 
   final HitKind kind;
 
@@ -51,6 +53,9 @@ class Judgement {
   /// The pointer had not reached the target yet.
   final bool early;
   final bool timeout;
+
+  /// A hold zone was let go of too soon.
+  final bool letGo;
 
   bool get isHit => kind != HitKind.miss;
 }

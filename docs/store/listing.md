@@ -46,15 +46,19 @@ To regenerate them:
 > - Boss rounds: watch the sequence, then play it back.
 > - Ghost zones, decoys, a spinning ring and a pointer that reverses.
 >
+> **More than a tap.** Hold long zones and let go right on the mark, and
+> fill your Focus meter with Perfects to slow time when it counts.
+>
 > **Build your run.** Beat a boss and pick one of three perks: a wider
 > Perfect window, a shield, a slower pointer, a combo saver, more coins...
 > Every run plays a little differently.
 >
 > **Ways to play**
 > - **Endless:** how far can you go? Stages change every 20 rounds.
-> - **Levels:** a map of 60 levels in 12 chapters that teach every trick. Each
+> - **Levels:** a map of 70 levels in 14 chapters that teach every trick. Each
 >   level has three star goals; stars open new chapters and exclusive balls
 >   and rings.
+> - **Rush:** one minute, no game over. How high can you score?
 > - **Daily Challenge:** the same run for everyone, every day.
 > - **Leaderboards:** climb the weekly rankings on Google Play Games, and
 >   see exactly how many points it takes to pass the next player.

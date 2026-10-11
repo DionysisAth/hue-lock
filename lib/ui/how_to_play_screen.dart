@@ -32,6 +32,18 @@ class HowToPlayScreen extends StatelessWidget {
           'Hit the bright band in the middle of a zone: 3 points and a combo.',
         ),
         (
+          Icons.hourglass_top_rounded,
+          3,
+          'Focus',
+          'Perfects fill the Focus button. Tap it to slow time while it lasts.',
+        ),
+        (
+          Icons.touch_app_rounded,
+          2,
+          'Hold',
+          'Long zone with a white end mark: press, hold, and let go on the mark.',
+        ),
+        (
           Icons.local_fire_department_rounded,
           0,
           'Fever',
@@ -156,6 +168,12 @@ class HowToPlayScreen extends StatelessWidget {
           2,
           'Daily',
           'The same run for everyone today. One attempt (more with an ad).',
+        ),
+        (
+          Icons.timer_rounded,
+          0,
+          'Rush',
+          'One minute, no game over. A miss costs 5 seconds; Perfects add time.',
         ),
         (
           Icons.self_improvement_rounded,

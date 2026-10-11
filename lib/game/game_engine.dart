@@ -49,6 +49,8 @@ const intros = <String, (String, String)>{
   'reverse': ('REVERSE', 'the pointer flips after each hit'),
   'greedy': ('GREEDY', 'thin gold zone = +5, or play it safe'),
   'powerup': ('POWER-UP', 'hit the target to collect it'),
+  'hold': ('HOLD', 'let go on the white mark'),
+  'focus': ('FOCUS READY', 'tap the Focus button to slow time'),
 };
 
 /// Praise for Perfect streaks; after the last one it repeats every 5.
@@ -67,7 +69,7 @@ String? streakWord(int streak) {
 }
 
 /// Mechanics that change the rules: they also get a short pause every time.
-const _alwaysBanner = {'not', 'split'};
+const _alwaysBanner = {'not', 'split', 'hold'};
 
 enum RunMode {
   /// The high-score mode.
@@ -84,6 +86,9 @@ enum RunMode {
 
   /// A hand-made level with a target count; teaches the mechanics.
   level,
+
+  /// Score as much as possible in a minute; a miss costs time, not the run.
+  rush,
 }
 
 sealed class GameEvent {
@@ -136,6 +141,28 @@ class NewBestEvent extends GameEvent {
 class FeverEvent extends GameEvent {
   const FeverEvent(this.active);
   final bool active;
+}
+
+/// Focus (slow time) started or ended.
+class FocusEvent extends GameEvent {
+  const FocusEvent(this.active);
+  final bool active;
+}
+
+/// A hold zone was pressed.
+class HoldStartEvent extends GameEvent {
+  const HoldStartEvent();
+}
+
+/// Rush: a miss cost time instead of the run.
+class RushMissEvent extends GameEvent {
+  const RushMissEvent();
+}
+
+/// Rush: the clock ran out.
+class TimeUpEvent extends GameEvent {
+  const TimeUpEvent(this.summary);
+  final RunSummary summary;
 }
 
 class PowerUpEvent extends GameEvent {
@@ -237,6 +264,8 @@ class RunSummary {
     this.hits = 0,
     this.bossesCleared = 0,
     this.fevers = 0,
+    this.focusUses = 0,
+    this.holdsCleared = 0,
     this.bestMultiplier = 1,
     this.powerUps = 0,
     this.notCleared = 0,
@@ -254,6 +283,8 @@ class RunSummary {
   final int hits;
   final int bossesCleared;
   final int fevers;
+  final int focusUses;
+  final int holdsCleared;
 
   /// Highest combo multiplier reached.
   final int bestMultiplier;
@@ -339,6 +370,17 @@ class GameEngine extends ChangeNotifier {
   /// Fever: a Perfect streak doubles points and speeds the pointer up.
   bool fever = false;
 
+  /// Focus meter (0..1, filled by hits) and whether time is slowed now.
+  double focus = 0;
+  bool focusActive = false;
+
+  /// Focus can be used in this run (Levels turn it on from its chapter).
+  bool focusEnabled = true;
+
+  /// Rush: seconds left on the clock.
+  double rushLeft = 0;
+  int _rushShown = 0;
+
   /// Power-ups: one stored shield, and rounds left of Slow-mo / Wide.
   bool shield = false;
   int slowRounds = 0;
@@ -376,6 +418,8 @@ class GameEngine extends ChangeNotifier {
   int hits = 0;
   int bossesCleared = 0;
   int fevers = 0;
+  int focusUses = 0;
+  int holdsCleared = 0;
   int bestMultiplier = 1;
   int powerUpsCollected = 0;
   int notCleared = 0;
@@ -395,6 +439,7 @@ class GameEngine extends ChangeNotifier {
     targetRounds: targetRounds,
     beatScore: beatScore,
     starGoals: starGoals,
+    focus: focusEnabled,
   );
 
   /// The run has not been reported yet (its rewards are not applied).
@@ -426,6 +471,8 @@ class GameEngine extends ChangeNotifier {
       hits: hits,
       bossesCleared: bossesCleared,
       fevers: fevers,
+      focusUses: focusUses,
+      holdsCleared: holdsCleared,
       bestMultiplier: bestMultiplier,
       powerUps: powerUpsCollected,
       notCleared: notCleared,
@@ -542,17 +589,33 @@ class GameEngine extends ChangeNotifier {
     int? targetRounds,
     int? beatScore,
     List<StarGoal> starGoals = const [],
+    bool focus = true,
   }) {
     finishRun();
     _seedArg = seed;
     this.starGoals = starGoals;
+    focusEnabled = focus;
     this.mode = mode;
     this.config = config ?? baseConfig;
+    if (mode == RunMode.rush) {
+      // A sprint: no boss pauses.
+      this.config = GameConfig.fromJson(
+        deepMerge(this.config.raw, {
+          'boss': {'every': 0},
+        }),
+      );
+      rushLeft = this.config.rush.seconds;
+      _rushShown = rushLeft.ceil();
+    }
     this.targetRounds = targetRounds;
     this.beatScore = beatScore;
     hits = 0;
     bossesCleared = 0;
     fevers = 0;
+    focusUses = 0;
+    holdsCleared = 0;
+    this.focus = 0;
+    focusActive = false;
     bestMultiplier = 1;
     powerUpsCollected = 0;
     notCleared = 0;
@@ -602,15 +665,29 @@ class GameEngine extends ChangeNotifier {
     if (round != null) _idleAngle = round!.pointerAngleAt(time);
     round = null;
     fever = false;
+    focusActive = false;
     effects.clear();
     effects.glowTarget = 0;
     _setPhase(GamePhase.home);
   }
 
+  /// Game speed: slowed while Focus is on (only while playing).
+  double get timeScale =>
+      focusActive && phase == GamePhase.playing ? config.focus.timeScale : 1;
+
+  /// [dt] is real time; the game clock runs at [timeScale].
   void tick(double dt) {
     if (dt <= 0) return;
-    time += dt;
+    final scale = timeScale;
+    time += dt * scale;
     effects.update(dt);
+    if (focusActive && phase == GamePhase.playing) {
+      focus -= dt * config.focus.drainPerSecond;
+      if (focus <= 0) {
+        focus = 0;
+        _stopFocus();
+      }
+    }
     switch (phase) {
       case GamePhase.home:
         _idleAngle += dt * 0.9;
@@ -634,10 +711,26 @@ class GameEngine extends ChangeNotifier {
           _setPhase(GamePhase.playing);
         }
       case GamePhase.playing:
+        if (mode == RunMode.rush) {
+          rushLeft -= dt * scale;
+          if (rushLeft <= 0) {
+            _timeUp();
+            return;
+          }
+          if (rushLeft.ceil() != _rushShown) {
+            _rushShown = rushLeft.ceil();
+            notifyListeners();
+          }
+        }
         final r = round;
         if (r != null && r.travelAt(time) > r.stepDeadline) {
-          // The fuse burnt out: the pointer passed the target untouched.
-          _onMiss(r, Judgement.timeout(r.localPointerAt(time)), time);
+          if (r.holding) {
+            // Held past the end: it still counts, as a Good.
+            _releaseHold(r, time, auto: true);
+          } else {
+            // The fuse burnt out: the pointer passed the target untouched.
+            _onMiss(r, Judgement.timeout(r.localPointerAt(time)), time);
+          }
         }
       case GamePhase.dying:
         if (phaseElapsed >= config.timing.deathFreeze) {
@@ -654,6 +747,8 @@ class GameEngine extends ChangeNotifier {
   Judgement? tap(double tapTime) {
     switch (phase) {
       case GamePhase.playing:
+        // A second finger while holding a hold zone does nothing.
+        if (round?.holding ?? false) return null;
         return _judge(tapTime);
       case GamePhase.gameOver:
         if (canRestart) restart(best: math.max(bestAtRunStart, score));
@@ -678,12 +773,135 @@ class GameEngine extends ChangeNotifier {
       relSpeed: r.relativeSpeedAt(t),
       perfectScale: perks.perfectScale,
     );
-    if (j.isHit) {
+    if (j.isHit && j.zone!.hold) {
+      _startHold(r, j);
+    } else if (j.isHit) {
       _onHit(r, j, t);
     } else {
       _onMiss(r, j, t);
     }
     return j;
+  }
+
+  void _startHold(ActiveRound r, Judgement j) {
+    r.holdIndex = j.zoneIndex!;
+    effects.hitPulse = 0.6;
+    _emit(const HoldStartEvent());
+    notifyListeners();
+  }
+
+  /// The finger came up at game time [releaseTime]: judges a held hold zone.
+  void release(double releaseTime) {
+    final r = round;
+    if (phase != GamePhase.playing || r == null || !r.holding) return;
+    _releaseHold(r, math.max(releaseTime, r.startTime));
+  }
+
+  /// Perfect when let go right at the far end, Good after enough of the
+  /// zone (or when held past it, [auto]), a miss when let go too soon.
+  void _releaseHold(ActiveRound r, double t, {bool auto = false}) {
+    final index = r.holdIndex;
+    final z = r.spec.zones[index];
+    r.holdIndex = -1;
+    final dir = r.spec.pointerDir;
+    final local = r.localPointerAt(t);
+    final near = wrapAngle(z.center - dir * z.halfWidth);
+    var held = travelDistance(near, local, dir);
+    // Just past the far edge reads as a small overshoot, not a full lap.
+    if (held > tau - z.width) held -= tau;
+    final speed = r.relativeSpeedAt(t);
+    final h = config.hold;
+    final perfectHalf = h.perfectWindow * speed / 2 * perks.perfectScale;
+    HitKind kind;
+    if (auto) {
+      kind = HitKind.good;
+    } else if ((held - z.width).abs() <= perfectHalf) {
+      kind = HitKind.perfect;
+    } else if (held >= z.width * h.minHeldFraction) {
+      kind = HitKind.good;
+    } else {
+      kind = HitKind.miss;
+    }
+    if (kind == HitKind.miss) {
+      final short = z.width * h.minHeldFraction - held;
+      _onMiss(
+        r,
+        Judgement(
+          kind: HitKind.miss,
+          localAngle: local,
+          letGo: true,
+          early: true,
+          missBySeconds: short / speed,
+          nearMiss: short / speed <= config.timing.nearMiss,
+        ),
+        t,
+      );
+      return;
+    }
+    holdsCleared++;
+    _onHit(
+      r,
+      Judgement(kind: kind, localAngle: local, zone: z, zoneIndex: index),
+      t,
+    );
+  }
+
+  /// Starts (or, if on, stops) Focus.
+  void toggleFocus() {
+    if (focusActive) {
+      _stopFocus();
+      return;
+    }
+    if (!focusEnabled ||
+        phase != GamePhase.playing ||
+        focus < config.focus.minToStart) {
+      return;
+    }
+    focusActive = true;
+    focusUses++;
+    _emit(const FocusEvent(true));
+    notifyListeners();
+  }
+
+  void _stopFocus() {
+    if (!focusActive) return;
+    focusActive = false;
+    _emit(const FocusEvent(false));
+    notifyListeners();
+  }
+
+  void _fillFocus(bool perfect) {
+    if (!focusEnabled) return;
+    final f = config.focus;
+    final before = focus;
+    focus = math.min(1, focus + (perfect ? f.perPerfect : f.perGood));
+    if (before < f.minToStart &&
+        focus >= f.minToStart &&
+        !seen.contains('focus')) {
+      _markSeen('focus');
+      final (title, subtitle) = intros['focus']!;
+      effects.banner = Announcement(title, subtitle: subtitle, life: 2.6);
+    }
+  }
+
+  /// Rush: the clock ran out; the run ends here.
+  void _timeUp() {
+    final r = round;
+    rushLeft = 0;
+    _stopFocus();
+    _endFever();
+    if (r != null) {
+      r.holdIndex = -1;
+      r.frozenAt = time;
+    }
+    lastMiss = null;
+    effects.glowTarget = 0;
+    effects.banner = null;
+    final summary = _summary(time, r);
+    coinsBanked = summary.coinsEarned;
+    lastSummary = summary;
+    _setPhase(GamePhase.dying);
+    _emit(TimeUpEvent(summary));
   }
 
   void _onHit(ActiveRound r, Judgement j, double t) {
@@ -721,6 +939,9 @@ class GameEngine extends ChangeNotifier {
     score += points;
     hits++;
     if (zone.isBonus) greedyHits++;
+
+    _fillFocus(perfect);
+    if (mode == RunMode.rush && perfect) rushLeft += config.rush.perfectBonus;
 
     final coinBonus = zone.hasCoin ? config.coins.coinZoneBonus : 0;
     zoneCoins += coinBonus;
@@ -960,6 +1181,7 @@ class GameEngine extends ChangeNotifier {
     r.frozenAt = t;
     completed = true;
     _endFever();
+    _stopFocus();
     final summary = _summary(t, r);
     coinsBanked = summary.coinsEarned;
     lastSummary = summary;
@@ -1077,6 +1299,7 @@ class GameEngine extends ChangeNotifier {
       if (isFirst && level == 0 && !seen.contains('intro')) 'intro',
       if (spec.kind == RoundKind.inverted) 'not',
       if (spec.kind == RoundKind.split) 'split',
+      if (spec.kind == RoundKind.normal && spec.target.hold) 'hold',
       if (spec.ghost) 'ghost',
       if (spec.ringSpeed != 0) 'spin',
       if (!isFirst && level > 0 && spec.pointerDir != previousDir) 'reverse',
@@ -1191,8 +1414,37 @@ class GameEngine extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    if (mode == RunMode.rush) {
+      // Rush: a miss costs time, then a fresh round from here.
+      perfectStreak = 0;
+      multiplier = 1;
+      _multiplierBase = 1;
+      _endFever();
+      rushLeft = math.max(0, rushLeft - config.rush.missPenalty);
+      effects.shake = 0.5;
+      effects.texts.add(
+        FloatingText('-${config.rush.missPenalty.round()}s', 0, big: true),
+      );
+      _emit(const RushMissEvent());
+      if (rushLeft <= 0) {
+        _timeUp();
+        return;
+      }
+      _startRound(
+        pointer: r.pointerAngleAt(t),
+        ring: r.ringAngleAt(t),
+        dir: r.spec.pointerDir,
+        t: t,
+        previousColor: r.spec.targetColor,
+        isFirst: true,
+      );
+      if (phase != GamePhase.countdown) _hold(0.6);
+      notifyListeners();
+      return;
+    }
     r.frozenAt = t;
     lastMiss = j;
+    _stopFocus();
     perfectStreak = 0;
     multiplier = 1;
     _multiplierBase = 1;

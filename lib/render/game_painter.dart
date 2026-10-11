@@ -49,6 +49,7 @@ const comboHeat = [
 ];
 
 const _ink = Color(0xE6101018);
+const _focusColor = Color(0xFF7FE7FF);
 const _gold = Color(0xFFFFD54A);
 const _feverColor = Color(0xFFFF7A2F);
 
@@ -164,6 +165,7 @@ class GamePainter extends CustomPainter {
           alpha: ghostAlpha,
         );
       }
+      _paintHolds(canvas, layout, ringW, round, ringAngle, ghostAlpha);
       if (!dead) {
         _paintSweetSpots(canvas, layout, ringW, round, ringAngle, ghostAlpha);
       }
@@ -258,6 +260,22 @@ class GamePainter extends CustomPainter {
               color.withValues(alpha: 0.38 * fx.edgeFlash),
             ],
             stops: const [0.72, 1],
+          ).createShader(rect),
+      );
+    }
+    if (engine.focusActive) {
+      // Focus: a cool vignette while time is slowed (one gradient rect).
+      final rect = Offset.zero & size;
+      canvas.drawRect(
+        rect,
+        Paint()
+          ..shader = RadialGradient(
+            radius: 1.0,
+            colors: [
+              _focusColor.withValues(alpha: 0),
+              _focusColor.withValues(alpha: 0.28),
+            ],
+            stops: const [0.6, 1],
           ).createShader(rect),
       );
     }
@@ -963,6 +981,62 @@ class GamePainter extends CustomPainter {
     }
   }
 
+  /// Hold zones: a dark track along the middle, a bright mark at the far
+  /// end (where to let go) and, while held, a fill up to the pointer.
+  void _paintHolds(
+    Canvas canvas,
+    RingLayout layout,
+    double ringW,
+    ActiveRound round,
+    double ringAngle,
+    double alpha,
+  ) {
+    final spec = round.spec;
+    final rect = Rect.fromCircle(center: layout.center, radius: layout.radius);
+    final dir = spec.pointerDir;
+    for (var i = 0; i < spec.zones.length; i++) {
+      final z = spec.zones[i];
+      if (!z.hold || round.consumed.contains(i)) continue;
+      final start = ringAngle + z.center - z.halfWidth;
+      canvas.drawArc(
+        rect,
+        _arcStart(start),
+        z.width,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = ringW * 0.22
+          ..color = _ink.withValues(alpha: 0.45 * alpha),
+      );
+      if (round.holdIndex == i) {
+        final near = z.center - dir * z.halfWidth;
+        final local = round.localPointerAt(engine.time);
+        final held = travelDistance(near, local, dir).clamp(0.0, z.width);
+        final from = dir > 0 ? near : near - held;
+        canvas.drawArc(
+          rect,
+          _arcStart(ringAngle + from),
+          held,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = ringW * 0.62
+            ..strokeCap = StrokeCap.round
+            ..color = Colors.white.withValues(alpha: 0.6),
+        );
+      }
+      final end = ringAngle + z.center + dir * z.halfWidth;
+      canvas.drawLine(
+        layout.at(end, layout.radius - ringW * 0.85),
+        layout.at(end, layout.radius + ringW * 0.85),
+        Paint()
+          ..strokeWidth = 4
+          ..strokeCap = StrokeCap.round
+          ..color = Colors.white.withValues(alpha: alpha),
+      );
+    }
+  }
+
   /// The Perfect window inside every zone: a bright band to aim for. Drawn
   /// on all zones alike (decoys and wrong colors too) so it never gives the
   /// answer away.
@@ -990,8 +1064,16 @@ class GamePainter extends CustomPainter {
     for (var i = 0; i < spec.zones.length; i++) {
       if (round.consumed.contains(i)) continue;
       final z = spec.zones[i];
-      final half = perfectHalfWidth(z, timing, speed, scale);
-      final center = ringAngle + z.center;
+      // A hold zone's Perfect is letting go at its far end.
+      final half = z.hold
+          ? math.min(
+              z.halfWidth,
+              engine.config.hold.perfectWindow * speed / 2 * scale,
+            )
+          : perfectHalfWidth(z, timing, speed, scale);
+      final center =
+          ringAngle +
+          (z.hold ? z.center + spec.pointerDir * z.halfWidth : z.center);
       canvas.drawArc(rect, _arcStart(center - half), half * 2, false, paint);
     }
   }

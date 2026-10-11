@@ -290,15 +290,19 @@ void main() {
           if (r.spec.zones[g].isBonus && !r.consumed.contains(g))
             r.spec.zones[g],
       ];
+      if (gold.isEmpty && r.currentPrimary.hold) {
+        holdThrough(e);
+        return;
+      }
       final target = gold.isNotEmpty ? gold.first : r.currentPrimary;
       advance(e, timeUntil(e, target.center) * 0.5);
       e.tap(e.time + timeUntil(e, target.center));
     }
 
-    test('60 levels in 12 chapters, unlocked one by one', () {
-      expect(levels, hasLength(60));
-      expect(levels.map((l) => l.chapter).toSet(), hasLength(12));
-      expect(levels.map((l) => l.id).toSet(), hasLength(60));
+    test('70 levels in 14 chapters, unlocked one by one', () {
+      expect(levels, hasLength(70));
+      expect(levels.map((l) => l.chapter).toSet(), hasLength(14));
+      expect(levels.map((l) => l.id).toSet(), hasLength(70));
       expect(levelUnlocked(levels, {}, 0), isTrue);
       expect(levelUnlocked(levels, {}, 1), isFalse);
       expect(levelUnlocked(levels, {'L1': 1}, 1), isTrue);
@@ -329,7 +333,7 @@ void main() {
 
     test('chapters open at a star count and pay out once', () {
       final chapters = chaptersOf(levels);
-      expect(chapters, hasLength(12));
+      expect(chapters, hasLength(14));
       expect(chapters.first.unlockStars, 0);
       for (var i = 1; i < chapters.length; i++) {
         expect(
@@ -362,11 +366,12 @@ void main() {
       final bonus = claimChapterRewards(p, levels).single;
       expect(bonus.$2, chapterStarBonus);
       // Item rewards land in the collection.
-      for (final l in chapters[1].levels) {
+      final withBall = chapters.firstWhere((c) => c.reward.ball != null);
+      for (final l in withBall.levels) {
         p.levelStars[l.id] = 1;
       }
       claimChapterRewards(p, levels);
-      expect(p.ownedBalls, contains(chapters[1].reward.ball));
+      expect(p.ownedBalls, contains(withBall.reward.ball));
     });
 
     test('star goals: each one is its own star and they add up', () {
@@ -448,11 +453,21 @@ void main() {
           config: l.configFrom(config),
           targetRounds: l.targets,
           starGoals: l.goals,
+          focus: l.focus,
         );
+        final wantsFocus = l.goals.any((g) => g.type == GoalType.focus);
         final seen = <String>{};
         var guard = 0;
         while (e.phase != GamePhase.gameOver && guard++ < 400) {
           tapBestZone(e);
+          // Spend Focus whenever it is ready, for "Use Focus" goals.
+          if (wantsFocus &&
+              !e.focusActive &&
+              e.phase == GamePhase.playing &&
+              e.focus >= config.focus.minToStart) {
+            e.toggleFocus();
+          }
+          if (e.round?.spec.target.hold ?? false) seen.add('hold');
           final spec = e.round?.spec;
           if (spec == null) continue;
           if (spec.kind == RoundKind.inverted) seen.add('inverted');
@@ -471,7 +486,7 @@ void main() {
         expect(events.whereType<MissEvent>(), isEmpty, reason: l.id);
         // A chapter's lesson is the first thing it teaches.
         final stage = l.overrides['stages'][0] as Map<String, dynamic>;
-        for (final k in ['inverted', 'split', 'ghost', 'pulse', 'rotate']) {
+        for (final k in ['inverted', 'split', 'ghost', 'hold', 'rotate']) {
           if ((stage[k] as num) >= 1) {
             expect(seen, contains(k), reason: '${l.id} teaches $k');
           }

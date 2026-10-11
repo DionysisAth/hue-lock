@@ -38,6 +38,11 @@ class GameConfig {
         'setBonusPerLock',
       ),
       fever = FeverConfig._(raw['fever'] as Map<String, dynamic>),
+      focus = FocusConfig._(
+        (raw['focus'] as Map<String, dynamic>?) ?? const {},
+      ),
+      hold = HoldConfig._((raw['hold'] as Map<String, dynamic>?) ?? const {}),
+      rush = RushConfig._((raw['rush'] as Map<String, dynamic>?) ?? const {}),
       powerUps = PowerUpConfig._(raw['powerUps'] as Map<String, dynamic>),
       boss = BossConfig._(raw['boss'] as Map<String, dynamic>),
       worlds = WorldsConfig._(raw['worlds'] as Map<String, dynamic>),
@@ -80,6 +85,9 @@ class GameConfig {
   final BonusZoneConfig bonusZone;
   final int setBonusPerLock;
   final FeverConfig fever;
+  final FocusConfig focus;
+  final HoldConfig hold;
+  final RushConfig rush;
   final PowerUpConfig powerUps;
   final BossConfig boss;
   final WorldsConfig worlds;
@@ -224,7 +232,8 @@ class StageConfig {
       invertedChance = _d(m, 'inverted'),
       splitChance = _d(m, 'split'),
       ghostChance = _d(m, 'ghost'),
-      pulseChance = _d(m, 'pulse');
+      pulseChance = _d(m, 'pulse'),
+      holdChance = (m['hold'] as num?)?.toDouble() ?? 0;
 
   final int fromLevel;
   final String name;
@@ -258,6 +267,10 @@ class StageConfig {
 
   /// Chance the pointer surges (speed swings) during the round.
   final double pulseChance;
+
+  /// Chance of a hold round: a long target to press, hold and let go of at
+  /// its end.
+  final double holdChance;
 }
 
 class PulseConfig {
@@ -298,6 +311,71 @@ class FeverConfig {
   final int perfectStreak;
   final int pointsMultiplier;
   final double speedFactor;
+}
+
+double _dOr(Map<String, dynamic> m, String k, double fallback) =>
+    (m[k] as num?)?.toDouble() ?? fallback;
+
+/// Focus: Perfects fill a meter; tapping the Focus button spends it to
+/// slow time.
+class FocusConfig {
+  FocusConfig._(Map<String, dynamic> m)
+    : timeScale = _dOr(m, 'timeScale', 0.55),
+      perPerfect = _dOr(m, 'perPerfect', 0.2),
+      perGood = _dOr(m, 'perGood', 0.05),
+      drainPerSecond = _dOr(m, 'drainPerSecond', 0.4),
+      minToStart = _dOr(m, 'minToStart', 0.25);
+
+  /// Game speed while Focus is on.
+  final double timeScale;
+
+  /// Meter gained per hit (1 = full).
+  final double perPerfect;
+  final double perGood;
+
+  /// Meter spent per real second of Focus.
+  final double drainPerSecond;
+
+  /// Least meter needed to start Focus.
+  final double minToStart;
+}
+
+/// Hold rounds: a long target zone, pressed, held and let go of at its end.
+class HoldConfig {
+  HoldConfig._(Map<String, dynamic> m)
+    : minDuration = _dOr(m, 'minMs', 450) / 1000,
+      maxDuration = _dOr(m, 'maxMs', 750) / 1000,
+      maxWidth = _dOr(m, 'maxDeg', 110) * _deg,
+      perfectWindow = _dOr(m, 'perfectWindowMs', 90) / 1000,
+      minHeldFraction = _dOr(m, 'minHeldFraction', 0.5);
+
+  /// How long the pointer takes to sweep a hold zone.
+  final double minDuration;
+  final double maxDuration;
+  final double maxWidth;
+
+  /// Letting go within this (seconds, total) around the end is Perfect.
+  final double perfectWindow;
+
+  /// Letting go before the pointer has crossed this much of the zone is a
+  /// miss.
+  final double minHeldFraction;
+}
+
+/// Rush mode: score as much as possible before the clock runs out.
+class RushConfig {
+  RushConfig._(Map<String, dynamic> m)
+    : seconds = _dOr(m, 'seconds', 60),
+      missPenalty = _dOr(m, 'missPenaltySeconds', 5),
+      perfectBonus = _dOr(m, 'perfectBonusSeconds', 0.5);
+
+  final double seconds;
+
+  /// Seconds lost on a miss (no game over in Rush).
+  final double missPenalty;
+
+  /// Seconds gained on a Perfect.
+  final double perfectBonus;
 }
 
 class PowerUpConfig {

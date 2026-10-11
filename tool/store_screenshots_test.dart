@@ -13,6 +13,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hue_lock/app.dart';
+import 'package:hue_lock/core/angles.dart';
 import 'package:hue_lock/game/game_engine.dart';
 import 'package:hue_lock/game/round.dart';
 import 'package:hue_lock/meta/levels.dart';
@@ -204,6 +205,33 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
     }
     await shoot(tester, '5_levels');
+  });
+
+  testWidgets('8 hold and focus', (tester) async {
+    await start(tester);
+    final e = await run(tester, 21);
+    var guard = 0;
+    while (!(e.round!.currentPrimary.hold) && guard++ < 80) {
+      await perfect(tester, e);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    while (e.phase == GamePhase.countdown) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    // Press early in the hold zone, slow time, and hold for a moment.
+    final r = e.round!;
+    final z = r.currentPrimary;
+    final press = wrapAngle(z.center - r.spec.pointerDir * z.halfWidth * 0.9);
+    while (timeUntil(e, press) > 0.02) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    e.tap(e.time + timeUntil(e, press));
+    e.focus = 0.8;
+    e.toggleFocus();
+    for (var i = 0; i < 22; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await shoot(tester, '8_hold_focus');
   });
 
   testWidgets('7 perks', (tester) async {

@@ -208,6 +208,7 @@ def main():
     write("streak.wav", streak(), gain=0.6)
     write("boss.wav", mix(sweep(220, 110, 0.9, 2.0), sweep(233, 116, 0.9, 2.0)), gain=0.7)
     write("combo_lost.wav", combo_lost(), gain=0.5)
+    write("focus.wav", mix(sweep(1200, 300, 0.45, 3.0), sweep(600, 150, 0.45, 3.0)), gain=0.55)
 
 
 if __name__ == "__main__":

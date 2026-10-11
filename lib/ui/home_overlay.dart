@@ -21,6 +21,7 @@ class HomeOverlay extends StatefulWidget {
     required this.onLevels,
     required this.onDaily,
     required this.onZen,
+    required this.onRush,
     required this.onDuel,
     required this.onShop,
     required this.onProgress,
@@ -40,6 +41,7 @@ class HomeOverlay extends StatefulWidget {
   final VoidCallback onLevels;
   final VoidCallback onDaily;
   final VoidCallback onZen;
+  final VoidCallback onRush;
   final VoidCallback onDuel;
   final VoidCallback onShop;
   final VoidCallback onProgress;
@@ -195,6 +197,13 @@ class _HomeOverlayState extends State<HomeOverlay>
                               theme: theme,
                               badge: widget.dailyAttemptsLeft > 0,
                               onTap: widget.onDaily,
+                            ),
+                            _ModeButton(
+                              label: 'RUSH',
+                              icon: Icons.timer_rounded,
+                              color: const Color(0xFFFF7A2F),
+                              theme: theme,
+                              onTap: widget.onRush,
                             ),
                             _ModeButton(
                               label: 'ZEN',

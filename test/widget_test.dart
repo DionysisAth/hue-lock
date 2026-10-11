@@ -104,6 +104,47 @@ void main() {
 }
 
 void _progressionTests() {
+  testWidgets('the Focus button slows time and never counts as a game tap', (
+    tester,
+  ) async {
+    final s = fakeServices(
+      profile: PlayerProfile()..seenIntros.addAll(intros.keys),
+    );
+    await tester.pumpWidget(HueLockApp(services: s));
+    await tester.pump();
+    await tester.tapAt(const Offset(200, 300));
+    await tester.pump(const Duration(milliseconds: 16));
+    final e =
+        (tester.state(find.byType(GameScreen)) as dynamic).engine as GameEngine;
+    expect(find.bySemanticsLabel('Focus: slow time'), findsOneWidget);
+    e.focus = 1;
+    await tester.tap(find.bySemanticsLabel('Focus: slow time'));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(e.focusActive, isTrue);
+    expect(e.phase, GamePhase.playing, reason: 'not judged as a miss');
+    expect(e.hits, 0);
+    await tester.pump(const Duration(milliseconds: 200));
+  });
+
+  testWidgets('RUSH starts a one-minute run with a clock', (tester) async {
+    final s = fakeServices(
+      profile: PlayerProfile()..seenIntros.addAll(intros.keys),
+    );
+    await tester.pumpWidget(HueLockApp(services: s));
+    await tester.pump();
+    await tester.tap(find.text('RUSH'));
+    await tester.pump(const Duration(milliseconds: 16));
+    final e =
+        (tester.state(find.byType(GameScreen)) as dynamic).engine as GameEngine;
+    expect(e.mode, RunMode.rush);
+    expect(find.text('1:00'), findsOneWidget);
+    // Real frames (a single long frame would count as an app pause).
+    for (var i = 0; i < 70; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(find.text('0:59'), findsOneWidget);
+  });
+
   testWidgets('signed in: weekly rank on home, the player to pass on game '
       'over', (tester) async {
     final games = GameServices(enabled: false)

@@ -108,14 +108,27 @@ class RoundGenerator {
     }
     final ghost =
         !isFirst && stage.ghostChance > 0 && _rng.chance(stage.ghostChance);
+    // Hold round: the target is long enough to press, hold and let go of.
+    final hold =
+        kind == RoundKind.normal &&
+        !isFirst &&
+        stage.holdChance > 0 &&
+        _rng.chance(stage.holdChance);
 
     // Primary zone: never shorter than the minimum sweep window, and always
     // at least the reaction time ahead of the pointer.
     final timing = config.timing;
-    final width = math.min(
+    var width = math.min(
       deg(150),
       math.max(diff.zoneSize * sizeFactor, timing.minZoneWindow * maxRel),
     );
+    if (hold) {
+      final h = config.hold;
+      width = math.max(
+        width,
+        math.min(h.maxWidth, maxRel * _rng.range(h.minDuration, h.maxDuration)),
+      );
+    }
     final minLead = _minLead(config, kind, maxRel, width, isFirst: isFirst);
     var maxLead = math.max(minLead, config.zone.maxLeadFraction * tau - width);
     if (kind == RoundKind.split) {
@@ -303,6 +316,7 @@ class RoundGenerator {
             isTarget: true,
             hasCoin: hasCoin,
             powerUp: powerUp,
+            hold: hold,
           ),
         ];
         final count =
@@ -348,7 +362,7 @@ class RoundGenerator {
         final goals = [0];
         // Greedy zone: thin, worth more, and placed before the safe one so
         // going for it is a real choice.
-        if (stage.bonusChance > 0 && _rng.chance(stage.bonusChance)) {
+        if (!hold && stage.bonusChance > 0 && _rng.chance(stage.bonusChance)) {
           final bw = math.max(
             config.bonusZone.size * sizeFactor,
             config.bonusZone.minWindow * maxRel,

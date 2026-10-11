@@ -113,6 +113,12 @@ class SettingsScreen extends StatelessWidget {
                 value: p.colorblind,
                 onChanged: (v) => s.profile.update((p) => p.colorblind = v),
               ),
+              SwitchListTile(
+                title: Text('Focus button on the left', style: text),
+                subtitle: Text('For playing with your left thumb', style: sub),
+                value: p.focusLeft,
+                onChanged: (v) => s.profile.update((p) => p.focusLeft = v),
+              ),
               const Divider(),
               ListTile(
                 leading: Icon(Icons.block_rounded, color: theme.text),

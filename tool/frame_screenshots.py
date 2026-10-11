@@ -25,6 +25,7 @@ SHOTS = [
     ("5_levels", "60 LEVELS", "TO MASTER", YELLOW),
     ("6_game_over", "SO CLOSE.", "ONE MORE TRY?", RED),
     ("7_perks", "BEAT THE BOSS,", "PICK A PERK", GREEN),
+    ("8_hold_focus", "HOLD ON,", "SLOW DOWN TIME", BLUE),
 ]
 
 W, H = 1080, 1920
