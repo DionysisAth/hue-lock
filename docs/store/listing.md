@@ -21,8 +21,9 @@ To regenerate them:
 - **Category:** Games → Arcade. Tags: Casual, Reflex, Single player,
   Offline, Abstract.
 - **Price:** Free, with ads and in-app purchases.
-- **Privacy policy URL:**
-  https://github.com/DionysisAth/hue-lock/blob/main/docs/privacy-policy.md
+- **Privacy policy URL:** https://www.nwbn.online/huelock/privacy-policy
+- **Website:** https://www.nwbn.online
+- **Contact email:** chris96skan@gmail.com
 
 ## Short description (80 characters max)
 

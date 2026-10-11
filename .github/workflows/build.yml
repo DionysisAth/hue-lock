@@ -148,11 +148,15 @@ jobs:
           if grep -q "CN=Android Debug" verify.txt; then
             echo "::error::The bundle is debug-signed"; exit 1
           fi
-      - if: steps.key.outputs.signed == 'true'
-        uses: actions/upload-artifact@v4
+      # Without the secrets the bundle carries a one-day throwaway key: it is
+      # published as hue-lock-resign.aab, to be re-signed with the upload key
+      # (jarsigner) before it goes to Play.
+      - if: steps.key.outputs.signed != 'true'
+        run: mv hue-lock.aab hue-lock-resign.aab
+      - uses: actions/upload-artifact@v4
         with:
           name: hue-lock-aab
-          path: hue-lock.aab
+          path: hue-lock*.aab
       - name: Remove the key from the runner
         if: always()
         run: rm -f android/app/upload-keystore.jks android/key.properties
@@ -170,8 +174,6 @@ jobs:
         with:
           name: hue-lock-apk
       - uses: actions/download-artifact@v4
-        # Only there once the upload key secrets are set.
-        continue-on-error: true
         with:
           name: hue-lock-aab
       - name: Publish download (GitHub Release)
@@ -183,7 +185,7 @@ jobs:
           prerelease: true
           files: |
             hue-lock.apk
-            hue-lock.aab
+            hue-lock*.aab
           body: |
             Test build from ${{ github.sha }}. Unit tests, the Android
             emulator integration test and a launch test of this exact APK
@@ -193,6 +195,7 @@ jobs:
 
             - `hue-lock.apk`: for testing on your phone (Android 7.0+, allow
               "install unknown apps"). Always shows Google's test ads.
-            - `hue-lock.aab` (once the upload key secrets are set): the
-              store build for Google Play, with real ads, signed with your
-              upload key.
+            - `hue-lock.aab`: the store build for Google Play, with real ads,
+              signed with your upload key. Until the upload key secrets are
+              set it is `hue-lock-resign.aab` instead, which must be
+              re-signed with the upload key before uploading.

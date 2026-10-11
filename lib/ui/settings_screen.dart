@@ -164,6 +164,21 @@ class SettingsScreen extends StatelessWidget {
                   mode: LaunchMode.externalApplication,
                 ),
               ),
+              ListTile(
+                leading: Icon(Icons.mail_outline_rounded, color: theme.text),
+                title: Text('Contact us', style: text),
+                subtitle: Text(
+                  Links.contactEmail,
+                  style: TextStyle(color: theme.subtleText),
+                ),
+                onTap: () => launchUrl(
+                  Uri(
+                    scheme: 'mailto',
+                    path: Links.contactEmail,
+                    query: 'subject=Hue%20Lock',
+                  ),
+                ),
+              ),
               const Divider(),
               ListTile(
                 title: Text('Best score', style: text),

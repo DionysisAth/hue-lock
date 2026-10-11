@@ -68,6 +68,7 @@ If this policy changes, we will update this page and the date at the top.
 
 ## Contact
 
-Questions or requests:
-[open an issue](https://github.com/DionysisAth/hue-lock/issues) on the
-game's GitHub page.
+Questions or requests: chris96skan@gmail.com
+
+The current version of this policy is published at
+https://www.nwbn.online/huelock/privacy-policy
