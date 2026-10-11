@@ -109,9 +109,10 @@ class _GameScreenState extends State<GameScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) {
-      // Never let a run continue while the player can't see it: open the
-      // pause menu (or freeze behind a 3-2-1 where it can't open).
-      if (engine.canPause) {
+      // Never let a run continue while the player can't see it. Sent to
+      // the background: the pause menu. A brief interruption (notification
+      // shade, system dialog): a 3-2-1 freeze.
+      if (state == AppLifecycleState.paused && engine.canPause) {
         engine.pauseByPlayer();
       } else {
         engine.pause();

@@ -58,6 +58,8 @@ Future<void> waitPlaying(WidgetTester tester, GameEngine e) async {
   }
   final clock = Stopwatch()..start();
   while (e.phase != GamePhase.playing) {
+    // The app went to the background (pause menu): carry on.
+    if (e.paused) e.resume();
     if (clock.elapsed > const Duration(seconds: 30)) {
       throw TestFailure('run never resumed, phase is ${e.phase}');
     }
