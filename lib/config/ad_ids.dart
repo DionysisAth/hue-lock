@@ -5,8 +5,8 @@
 /// builds made with --dart-define=TEST_ADS=true (the downloadable test APK)
 /// always use test ads, so tapping your own ads never counts as fraud.
 abstract final class AdIds {
-  static const androidInterstitial = '';
-  static const androidRewarded = '';
+  static const androidInterstitial = 'ca-app-pub-1774874652706103/6291309626';
+  static const androidRewarded = 'ca-app-pub-1774874652706103/5313269873';
   static const iosInterstitial = '';
   static const iosRewarded = '';
 }

@@ -59,11 +59,9 @@ chat and they get wired in.
    - On iOS, also create an **IDFA explainer message**.
 
    The app already shows these messages and has a "Privacy options" button.
-5. **Send to Claude:**
-   - Android app id: `ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX`
-   - Android interstitial unit: `ca-app-pub-…/…`
-   - Android rewarded unit: `ca-app-pub-…/…`
-   - The same three for iOS, if you're doing iOS
+5. **Ids in the app.** Android is done (app id
+   `ca-app-pub-1774874652706103~9270942166`, interstitial and rewarded
+   units). For iOS, send Claude its app id and its two unit ids.
 
    They go into `android/app/src/main/AndroidManifest.xml`,
    `ios/Runner/Info.plist` and `lib/config/ad_ids.dart`.
