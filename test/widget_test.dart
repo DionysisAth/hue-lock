@@ -6,6 +6,7 @@ import 'package:hue_lock/app.dart';
 import 'package:hue_lock/game/game_engine.dart';
 import 'package:hue_lock/game/round.dart';
 import 'package:hue_lock/ui/game_screen.dart';
+import 'package:hue_lock/ui/home_overlay.dart';
 import 'package:hue_lock/meta/levels.dart';
 import 'package:hue_lock/services/ads_service.dart';
 import 'package:hue_lock/services/analytics.dart';
@@ -39,7 +40,7 @@ void main() {
     await tester.pumpWidget(HueLockApp(services: s));
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('HUE LOCK'), findsOneWidget);
+    expect(find.byType(GameTitle), findsOneWidget);
     expect(find.text('BEST 42'), findsOneWidget);
     expect(find.text('TAP TO PLAY'), findsOneWidget);
 

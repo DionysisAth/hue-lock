@@ -139,14 +139,7 @@ class GamePainter extends CustomPainter {
           ..color = halo.withValues(alpha: a),
       );
     }
-    canvas.drawCircle(
-      c,
-      r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = ringW
-        ..color = theme.ringNeutral,
-    );
+    _paintRing(canvas, layout, ringW, ringAngle);
 
     // Zones.
     if (round != null) {
@@ -287,6 +280,67 @@ class GamePainter extends CustomPainter {
     }
   }
 
+  /// The neutral track: a rounded "tube" (a few plain strokes, no blur) and
+  /// fine tick marks inside it that turn with the ring.
+  void _paintRing(
+    Canvas canvas,
+    RingLayout layout,
+    double ringW,
+    double ringAngle,
+  ) {
+    final c = layout.center;
+    final r = layout.radius;
+    final stroke = Paint()..style = PaintingStyle.stroke;
+    canvas.drawCircle(
+      c,
+      r,
+      stroke
+        ..strokeWidth = ringW
+        ..color = theme.ringNeutral,
+    );
+    // Shade along the inner edge, light along the outer one.
+    canvas.drawCircle(
+      c,
+      r - ringW * 0.32,
+      stroke
+        ..strokeWidth = ringW * 0.36
+        ..color = Colors.black.withValues(alpha: theme.dark ? 0.2 : 0.05),
+    );
+    canvas.drawCircle(
+      c,
+      r + ringW * 0.3,
+      stroke
+        ..strokeWidth = ringW * 0.14
+        ..color = Colors.white.withValues(alpha: theme.dark ? 0.06 : 0.35),
+    );
+    // Hairline rims.
+    final rim = theme.text.withValues(alpha: theme.dark ? 0.09 : 0.12);
+    stroke
+      ..strokeWidth = 1
+      ..color = rim;
+    canvas.drawCircle(c, r + ringW / 2 + 0.5, stroke);
+    canvas.drawCircle(c, r - ringW / 2 - 0.5, stroke);
+
+    // Ticks every 15 degrees, longer every 90.
+    const ticks = 24;
+    final points = <Offset>[];
+    final inner = r - ringW / 2 - ringW * 0.28;
+    for (var i = 0; i < ticks; i++) {
+      final a = ringAngle + i * tau / ticks;
+      points
+        ..add(layout.at(a, inner))
+        ..add(layout.at(a, inner - ringW * (i % 6 == 0 ? 0.32 : 0.16)));
+    }
+    canvas.drawPoints(
+      ui.PointMode.lines,
+      points,
+      Paint()
+        ..strokeWidth = 1.5
+        ..strokeCap = StrokeCap.round
+        ..color = theme.text.withValues(alpha: theme.dark ? 0.16 : 0.2),
+    );
+  }
+
   double _ghostAlpha(double t) {
     final g = engine.config.ghost;
     // Smooth on/off: visible for visibleFraction of the period, starting
@@ -321,6 +375,19 @@ class GamePainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [theme.bgTop, theme.bgBottom],
+        ).createShader(rect),
+    );
+    // A soft spotlight behind the ring and darker corners, in one draw.
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = RadialGradient(
+          center: Alignment(0, layout.center.dy / size.height * 2 - 1),
+          radius: 1.15,
+          colors: theme.dark
+              ? const [Color(0x16FFFFFF), Color(0x00FFFFFF), Color(0x66000000)]
+              : const [Color(0x40FFFFFF), Color(0x00FFFFFF), Color(0x18000000)],
+          stops: const [0, 0.5, 1],
         ).createShader(rect),
     );
     final glowRect = Rect.fromCircle(
@@ -425,6 +492,42 @@ class GamePainter extends CustomPainter {
         ..strokeWidth = ringW
         ..color = color.withValues(alpha: alpha),
     );
+    // Tube shading: a light band along the outer edge, a soft shade along
+    // the inner one, and a dark hairline at both ends so neighbouring zones
+    // stay apart.
+    final band = Paint()..style = PaintingStyle.stroke;
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: r + ringW * 0.26),
+      start,
+      z.width,
+      false,
+      band
+        ..strokeWidth = ringW * 0.18
+        ..color = Color.lerp(
+          color,
+          Colors.white,
+          0.5,
+        )!.withValues(alpha: 0.55 * alpha),
+    );
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: r - ringW * 0.36),
+      start,
+      z.width,
+      false,
+      band
+        ..strokeWidth = ringW * 0.28
+        ..color = Colors.black.withValues(alpha: 0.13 * alpha),
+    );
+    final edge = Paint()
+      ..strokeWidth = 1.5
+      ..color = _ink.withValues(alpha: 0.5 * alpha);
+    for (final a in [angle - z.halfWidth, angle + z.halfWidth]) {
+      canvas.drawLine(
+        layout.at(a, r - ringW / 2),
+        layout.at(a, r + ringW / 2),
+        edge,
+      );
+    }
     final outline = z.isBonus ? _gold : theme.zoneOutline;
     if (outline != null) {
       final o = Paint()
@@ -614,14 +717,53 @@ class GamePainter extends CustomPainter {
         );
       }
     }
+    // Needle: a dark outline keeps it readable over bright zones, a bright
+    // core gives it shine, and an arrowhead outside the ring marks the
+    // index.
+    final body = Paint()..strokeCap = StrokeCap.round;
     canvas.drawLine(
       inner,
       outer,
-      Paint()
+      body
+        ..strokeWidth = ringW * 0.3 + 3
+        ..color = _ink.withValues(alpha: theme.dark ? 0.55 : 0.3),
+    );
+    canvas.drawLine(
+      inner,
+      outer,
+      body
         ..strokeWidth = ringW * 0.3
-        ..strokeCap = StrokeCap.round
         ..color = color,
     );
+    canvas.drawLine(
+      layout.at(angle, layout.radius - ringW * 0.7),
+      layout.at(angle, layout.radius + ringW * 0.7),
+      body
+        ..strokeWidth = ringW * 0.09
+        ..color = Color.lerp(
+          color,
+          theme.dark ? Colors.white : const Color(0xFF8A7AA6),
+          0.6,
+        )!.withValues(alpha: 0.8),
+    );
+    final out = Offset(math.sin(angle), -math.cos(angle));
+    final side = Offset(-out.dy, out.dx) * ringW * 0.3;
+    final tip = layout.at(angle, layout.radius + ringW * 1.12);
+    final back = layout.at(angle, layout.radius + ringW * 1.62);
+    final head = Path()
+      ..moveTo(tip.dx, tip.dy)
+      ..lineTo((back + side).dx, (back + side).dy)
+      ..lineTo((back - side).dx, (back - side).dy)
+      ..close();
+    canvas.drawPath(
+      head,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..strokeJoin = StrokeJoin.round
+        ..color = _ink.withValues(alpha: theme.dark ? 0.45 : 0.25),
+    );
+    canvas.drawPath(head, Paint()..color = color);
   }
 
   void _paintBall(
@@ -659,6 +801,20 @@ class GamePainter extends CustomPainter {
         : engine.fever
         ? _feverColor
         : palette[colors.first];
+    // Soft shadow under the ball, so it sits above the board.
+    final shadowC = c + Offset(0, br * 0.16);
+    canvas.drawCircle(
+      shadowC,
+      br * 1.2,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            Colors.black.withValues(alpha: theme.dark ? 0.45 : 0.18),
+            Colors.black.withValues(alpha: 0),
+          ],
+          stops: const [0.7, 1],
+        ).createShader(Rect.fromCircle(center: shadowC, radius: br * 1.2)),
+    );
     if (theme.glowStrength > 0 || engine.fever) {
       // A radial gradient instead of a blurred circle: same soft glow,
       // no offscreen blur pass every frame.
@@ -808,6 +964,23 @@ class GamePainter extends CustomPainter {
         ..strokeCap = StrokeCap.round
         ..color = color,
     );
+    // A spark where the fuse is burning.
+    if (f > 0 && f < 1 && engine.phase == GamePhase.playing) {
+      final a = -math.pi / 2 + math.pi * 2 * f;
+      final p = c + Offset(math.cos(a), math.sin(a)) * br * 1.28;
+      final flicker = 1 + 0.2 * math.sin(engine.time * 40);
+      final sr = br * 0.22 * flicker;
+      final spark = hot ? color : _gold;
+      canvas.drawCircle(
+        p,
+        sr,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [spark.withValues(alpha: 0.7), spark.withValues(alpha: 0)],
+          ).createShader(Rect.fromCircle(center: p, radius: sr)),
+      );
+      canvas.drawCircle(p, br * 0.055, Paint()..color = Colors.white);
+    }
   }
 
   /// Lock set progress: one pip per lock in the set, filled when cleared.
@@ -1026,12 +1199,21 @@ class GamePainter extends CustomPainter {
         );
       }
       final end = ringAngle + z.center + dir * z.halfWidth;
+      final a = layout.at(end, layout.radius - ringW * 0.85);
+      final b = layout.at(end, layout.radius + ringW * 0.85);
+      final mark = Paint()..strokeCap = StrokeCap.round;
       canvas.drawLine(
-        layout.at(end, layout.radius - ringW * 0.85),
-        layout.at(end, layout.radius + ringW * 0.85),
-        Paint()
+        a,
+        b,
+        mark
+          ..strokeWidth = 7
+          ..color = _ink.withValues(alpha: 0.5 * alpha),
+      );
+      canvas.drawLine(
+        a,
+        b,
+        mark
           ..strokeWidth = 4
-          ..strokeCap = StrokeCap.round
           ..color = Colors.white.withValues(alpha: alpha),
       );
     }
@@ -1097,35 +1279,59 @@ class GamePainter extends CustomPainter {
       speed * 0.09 * (0.8 + 0.2 * heat),
     );
     if (length < 0.02) return;
-    const segments = 7;
     final rect = Rect.fromCircle(center: layout.center, radius: layout.radius);
     final tint = heat >= 2
         ? Color.lerp(theme.pointer, comboHeat[heat - 1], 0.6)!
         : theme.pointer;
-    final paint = Paint()..style = PaintingStyle.stroke;
-    for (var i = 0; i < segments; i++) {
-      final a0 = angle - dir * length * i / segments;
-      final a1 = angle - dir * length * (i + 1) / segments;
-      final color = engine.fever
-          ? HSVColor.fromAHSV(
-              1,
-              (engine.time * 200 + i * 25) % 360,
-              0.8,
-              1,
-            ).toColor()
-          : tint;
-      canvas.drawArc(
-        rect,
-        _arcStart(math.min(a0, a1)),
-        (a1 - a0).abs(),
-        false,
-        paint
-          ..strokeWidth = ringW * (0.9 - i * 0.09)
-          ..color = color.withValues(
-            alpha: (0.32 + 0.04 * (heat - 1)) * (1 - i / segments),
+    // One smooth sweep gradient from clear (tail) to bright (pointer); in
+    // Fever the tail runs through the rainbow.
+    final from = dir > 0 ? angle - length : angle;
+    const steps = 5;
+    final hues = [
+      for (var i = 0; i < steps; i++)
+        engine.fever
+            ? HSVColor.fromAHSV(
+                1,
+                (engine.time * 200 + i * 30) % 360,
+                0.8,
+                1,
+              ).toColor()
+            : tint,
+    ];
+    final peak = 0.36 + 0.04 * (heat - 1);
+    Shader sweep(double alpha) {
+      final colors = [
+        for (var i = 0; i < steps; i++)
+          hues[i].withValues(
+            alpha: alpha * math.pow(i / (steps - 1), 1.6).toDouble(),
           ),
-      );
+      ];
+      return SweepGradient(
+        endAngle: length,
+        colors: dir > 0 ? colors : colors.reversed.toList(),
+        transform: GradientRotation(_arcStart(from)),
+      ).createShader(rect);
     }
+
+    final paint = Paint()..style = PaintingStyle.stroke;
+    canvas.drawArc(
+      rect,
+      _arcStart(from),
+      length,
+      false,
+      paint
+        ..strokeWidth = ringW * 0.95
+        ..shader = sweep(peak * 0.6),
+    );
+    canvas.drawArc(
+      rect,
+      _arcStart(from),
+      length,
+      false,
+      paint
+        ..strokeWidth = ringW * 0.42
+        ..shader = sweep(math.min(1, peak * 1.6)),
+    );
   }
 
   /// Slow drifting dust in the background; it speeds up with the combo.

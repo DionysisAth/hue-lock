@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../meta/progression.dart';
@@ -272,29 +274,182 @@ class _HomeOverlayState extends State<HomeOverlay>
   }
 }
 
-class GameTitle extends StatelessWidget {
-  const GameTitle({super.key, required this.theme});
+/// The HUE LOCK logo: rainbow letters with a glossy top and a dark
+/// extrusion, and the O drawn as a little color dial whose pointer clicks
+/// from color to color. Only the dial repaints (its own boundary); the
+/// letters are static.
+class GameTitle extends StatefulWidget {
+  const GameTitle({super.key, required this.theme, this.fontSize = 54});
 
   final RingTheme theme;
+  final double fontSize;
+
+  @override
+  State<GameTitle> createState() => _GameTitleState();
+}
+
+class _GameTitleState extends State<GameTitle>
+    with SingleTickerProviderStateMixin {
+  late final _spin = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 4800),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final size = widget.fontSize;
+    final dial = size * 0.74;
+    final style = TextStyle(
+      color: Colors.white,
+      fontSize: size,
+      fontWeight: FontWeight.w900,
+      letterSpacing: size * 0.1,
+      height: 1,
+    );
+    // The same row in every layer, so the pieces line up exactly.
+    Widget row(Color color, Widget o) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('HUE L', style: style.copyWith(color: color)),
+        Padding(
+          padding: EdgeInsets.only(right: size * 0.1, bottom: size * 0.06),
+          child: SizedBox.square(dimension: dial, child: o),
+        ),
+        Text('CK', style: style.copyWith(color: color)),
+      ],
+    );
     final colors = HuePalette.standard.colors;
-    return ShaderMask(
-      shaderCallback: (rect) =>
-          LinearGradient(colors: colors).createShader(rect),
-      child: const Text(
-        'HUE LOCK',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 52,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 6,
-          height: 1,
+    final shadow = widget.theme.dark
+        ? const Color(0xFF05050C)
+        : const Color(0xFF34264A).withValues(alpha: 0.35);
+    return Semantics(
+      label: 'HUE LOCK',
+      excludeSemantics: true,
+      child: RepaintBoundary(
+        child: Stack(
+          children: [
+            // Extrusion.
+            Transform.translate(
+              offset: Offset(0, size * 0.07),
+              child: row(
+                shadow,
+                CustomPaint(painter: _DialPainter(shadow: shadow)),
+              ),
+            ),
+            ShaderMask(
+              shaderCallback: (rect) =>
+                  LinearGradient(colors: [...colors, colors.first])
+                      .createShader(rect),
+              child: row(Colors.white, const SizedBox()),
+            ),
+            // Gloss on the upper half of the letters.
+            ShaderMask(
+              shaderCallback: (rect) => const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x66FFFFFF), Color(0x00FFFFFF)],
+                stops: [0.15, 0.55],
+              ).createShader(rect),
+              child: row(Colors.white, const SizedBox()),
+            ),
+            row(
+              Colors.transparent,
+              RepaintBoundary(
+                child: CustomPaint(
+                  painter: _DialPainter(spin: _spin, colors: colors),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+/// The O of the logo: four colored arcs and a pointer that ticks onto each
+/// color in turn with a little overshoot, like a lock dial.
+class _DialPainter extends CustomPainter {
+  _DialPainter({this.spin, this.colors = const [], this.shadow})
+    : super(repaint: spin);
+
+  final Animation<double>? spin;
+  final List<Color> colors;
+  final Color? shadow;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final w = size.width * 0.24;
+    final r = size.width / 2 - w / 2;
+    final rect = Rect.fromCircle(center: c, radius: r);
+    final arc = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w;
+    if (shadow != null) {
+      canvas.drawCircle(c, r, arc..color = shadow!);
+      return;
+    }
+    const gap = 0.16;
+    for (var i = 0; i < 4; i++) {
+      canvas.drawArc(
+        rect,
+        -math.pi / 2 - math.pi / 4 + i * math.pi / 2 + gap / 2,
+        math.pi / 2 - gap,
+        false,
+        arc..color = colors[i],
+      );
+    }
+    // Gloss along the top of the dial.
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: r + w * 0.22),
+      math.pi * 1.1,
+      math.pi * 0.8,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.22
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0x55FFFFFF),
+    );
+    // Four steps per turn; each step eases in with a small overshoot.
+    final v = (spin?.value ?? 0) * 4;
+    final step = v.floor();
+    final k = (v - step) < 0.3
+        ? Curves.easeOutBack.transform((v - step) / 0.3)
+        : 1.0;
+    final a = (step + k) * math.pi / 2;
+    final dir = Offset(math.sin(a), -math.cos(a));
+    final needle = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = w * 0.42;
+    final from = c + dir * (r - w * 0.75);
+    final to = c + dir * (r + w * 0.75);
+    canvas.drawLine(
+      from,
+      to,
+      needle
+        ..strokeWidth = w * 0.42 + 2
+        ..color = const Color(0x99000000),
+    );
+    canvas.drawLine(
+      from,
+      to,
+      needle
+        ..strokeWidth = w * 0.42
+        ..color = Colors.white,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_DialPainter old) =>
+      old.spin != spin || old.shadow != shadow;
 }
 
 class _LevelBadge extends StatelessWidget {

@@ -51,6 +51,9 @@ Color _shade(Color c, double amount) =>
 Color _tint(Color c, double amount) =>
     Color.lerp(c, const Color(0xFFFFFFFF), amount)!;
 
+/// A glossy sphere lit from the top left: gradient body, a bounce light
+/// along the lower right rim, a soft and a sharp highlight, and a fine rim.
+/// Plain draws only (no blur), so it is cheap every frame.
 void _shadedBall(Canvas canvas, Offset c, double r, Color color) {
   final rect = Rect.fromCircle(center: c, radius: r);
   canvas.drawCircle(
@@ -59,18 +62,42 @@ void _shadedBall(Canvas canvas, Offset c, double r, Color color) {
     Paint()
       ..shader = Gradient.radial(
         c + Offset(-r * 0.35, -r * 0.4),
-        r * 1.5,
-        [_tint(color, 0.25), color, _shade(color, 0.3)],
-        [0, 0.55, 1],
+        r * 1.55,
+        [_tint(color, 0.4), color, _shade(color, 0.42)],
+        [0, 0.48, 1],
       ),
+  );
+  canvas.drawArc(
+    Rect.fromCircle(center: c, radius: r * 0.84),
+    0.15,
+    1.55,
+    false,
+    Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = r * 0.12
+      ..strokeCap = StrokeCap.round
+      ..color = _tint(color, 0.45).withValues(alpha: 0.3),
   );
   canvas.drawOval(
     Rect.fromCenter(
-      center: rect.center + Offset(-r * 0.33, -r * 0.42),
-      width: r * 0.55,
-      height: r * 0.32,
+      center: rect.center + Offset(-r * 0.3, -r * 0.4),
+      width: r * 0.68,
+      height: r * 0.4,
     ),
-    _fill(const Color(0x55FFFFFF)),
+    _fill(const Color(0x40FFFFFF)),
+  );
+  canvas.drawCircle(
+    c + Offset(-r * 0.38, -r * 0.44),
+    r * 0.1,
+    _fill(const Color(0xD9FFFFFF)),
+  );
+  canvas.drawCircle(
+    c,
+    r,
+    Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(1, r * 0.03)
+      ..color = const Color(0x2EFFFFFF),
   );
 }
 
