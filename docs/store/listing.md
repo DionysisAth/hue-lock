@@ -55,7 +55,7 @@ To regenerate them:
 >
 > **Ways to play**
 > - **Endless:** how far can you go? Stages change every 20 rounds.
-> - **Levels:** a map of 70 levels in 14 chapters that teach every trick. Each
+> - **Levels:** a map of 30 levels that teach every trick. Each
 >   level has three star goals; stars open new chapters and exclusive balls
 >   and rings.
 > - **Rush:** one minute, no game over. How high can you score?

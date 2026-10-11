@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Writes assets/config/levels.json: 12 chapters x 5 levels.
+"""Writes assets/config/levels.json: 10 chapters x 3 levels, an introduction
+to every mechanic (Endless is the long game).
 
-Difficulty rises slowly and evenly over the whole map (pointer speed, zone
-size and target count follow the level's position), and every chapter opens
-with an easier lesson level for its new mechanic. Edit the tables below and
+Difficulty rises evenly over the map (pointer speed, zone size and target
+count follow the level's position), and a chapter's lesson level plays like
+an earlier one. Edit the tables below and
 re-run:
 
     python3 tool/generate_levels.py
@@ -26,165 +27,77 @@ CHAPTERS = [
         ("Sweet Spot", "The bright band inside each zone is the Perfect window. Perfects are worth 3, and in a row they raise your combo.",
          {"colors": [1, 1]}, {"ease": 1}, ["perfects:4", "streak:3"]),
         ("Two Colors", "Now there are two colors. Only the one matching the ball counts.",
-         {"colors": [2, 2]}, {}, None),
-        ("Pick the Right One", "Three colors on the ring. Find the ball's color first, then wait for it.",
-         {"colors": [2, 3]}, {}, None),
-        ("Warm-Up Run", "Clear the dots above the ball in a row for a set bonus.",
-         {"colors": [2, 3], "locks": [2, 3]}, {}, None),
+         {"colors": [2, 2]}, {}, ["perfects:5", "streak:4"]),
     ]),
     ("Focus", {"coins": 100}, [
         ("Slow Down", "Perfects fill the FOCUS button in the corner. Tap it to slow time while the meter lasts. Taps on it never count as a miss.",
          {"colors": [1, 2]}, {"ease": 2}, ["focus:1", "streak:3"]),
-        ("Save It", "Focus runs out fast. Save it for the round that needs it.",
-         {"colors": [2, 2]}, {"ease": 1}, ["focus:1", "streak:4"]),
-        ("Twice as Calm", "Fill the meter again with Perfects, then use it again.",
-         {"colors": [2, 3]}, {}, ["focus:2", "perfects:5"]),
+        ("Save It", "Focus runs out fast. Fill it again with Perfects and save it for the round that needs it.",
+         {"colors": [2, 2]}, {"ease": 1}, ["focus:2", "perfects:5"]),
         ("Tiny Targets", "Small zones. Slow time to land them.",
-         {"colors": [2, 3]}, {"sizeDelta": -10}, ["focus:2", "streak:4"]),
-        ("Steady Under Pressure", "Faster, with lock sets. Focus is your friend.",
-         {"colors": [2, 3], "locks": [2, 3]}, {"speedDelta": 5}, ["focus:2", "streak:5"]),
+         {"colors": [2, 3]}, {"sizeDelta": -8}, ["focus:2", "streak:4"]),
     ]),
     ("Turnaround", {"coins": 50, "ball": "bullseye"}, [
         ("About Face", "REVERSE: the pointer flips direction after every hit.",
-         {"colors": [1, 1], "reverse": 1}, {"ease": 1}, None),
-        ("Back and Forth", "Sometimes it flips, sometimes it doesn't. Watch the pointer, not the clock.",
-         {"colors": [2, 2], "reverse": 0.6}, {}, None),
-        ("Switchback", "Every hit flips it, with more colors to choose from.",
-         {"colors": [2, 3], "reverse": 1}, {}, None),
-        ("Ping Pong", "Short hops back and forth. Stay calm.",
-         {"colors": [2, 3], "reverse": 0.8, "locks": [2, 3]}, {}, None),
-        ("Turnabout", "Three colors, flips and lock sets together.",
-         {"colors": [3, 3], "reverse": 0.7, "locks": [2, 4]}, {}, None),
+         {"colors": [1, 1], "reverse": 1}, {"ease": 1}, ["perfects:4", "streak:4"]),
+        ("Greedy", "GREEDY: a thin gold-rimmed zone is worth +5. Go for it, or wait for the safe one.",
+         {"colors": [2, 2], "reverse": 0.5, "bonus": 0.8}, {}, ["greedy:1", "greedy:3"]),
+        ("Lock Sets", "Clear the dots above the ball in a row for a set bonus. Power-ups ride on targets: shield, slow-mo and wide.",
+         {"colors": [2, 3], "reverse": 1, "locks": [3, 4]}, {"powerUpChance": 0.4}, ["powerUps:1", "streak:4"]),
     ]),
     ("Hold On", {"coins": 120, "tokens": 1}, [
         ("Hold On", "HOLD: some targets are long, with a white mark at the end. Press when the pointer is in it, keep holding, and let go on the mark.",
          {"colors": [1, 1], "hold": 1}, {"ease": 2}, ["holds:3", "perfects:2"]),
         ("Let Go", "Letting go right on the white mark is a Perfect. Too soon is a miss.",
          {"colors": [1, 2], "hold": 1}, {"ease": 1}, ["holds:5", "perfects:4"]),
-        ("Mix It Up", "Taps and holds, one after the other. Read each target.",
-         {"colors": [2, 2], "hold": 0.6}, {}, ["holds:3", "streak:4"]),
-        ("Hold and Turn", "Holds with a pointer that flips.",
+        ("Hold and Turn", "Taps and holds, with a pointer that flips. Read each target.",
          {"colors": [2, 3], "hold": 0.7, "reverse": 0.6}, {}, ["holds:3", "streak:4"]),
-        ("Long Haul", "Lots of holds. Use Focus on the tough ones.",
-         {"colors": [2, 3], "hold": 0.7, "locks": [2, 3]}, {}, ["holds:6", "streak:5"]),
     ]),
-    ("Gold Rush", {"coins": 150, "tokens": 1}, [
-        ("Greedy", "GREEDY: a thin gold-rimmed zone is worth +5. Go for it, or wait for the safe one.",
-         {"colors": [1, 2], "bonus": 0.8}, {"ease": 1}, ["greedy:1", "greedy:3"]),
-        ("Power-Ups", "Badges ride on targets: hit the target to collect them. Shield, slow-mo and wide.",
-         {"colors": [2, 2]}, {"powerUpChance": 0.4}, ["powerUps:1", "streak:4"]),
-        ("Shield Up", "A shield absorbs one miss. Keep it to the end for a star.",
-         {"colors": [2, 3], "reverse": 0.3}, {"powerUpChance": 0.4, "powerUpTypes": ["shield"]}, ["shield", "streak:4"]),
-        ("Lucky Streak", "Gold zones and power-ups. Greed is good, sometimes.",
-         {"colors": [2, 3], "bonus": 0.5, "locks": [2, 3]}, {"powerUpChance": 0.3}, ["greedy:1", "streak:5"]),
-        ("Treasure Hunt", "Everything so far, with gold on top.",
-         {"colors": [2, 3], "bonus": 0.5, "reverse": 0.5, "locks": [2, 4]}, {"powerUpChance": 0.2}, None),
-    ]),
-    ("Opposites", {"theme": "sunset"}, [
+    ("Opposites", {"coins": 150, "theme": "sunset"}, [
         ("Not That One", "NOT: the ball shows a crossed-out color. Hit any color EXCEPT that one.",
          {"colors": [3, 3], "inverted": 1}, {"ease": 1}, None),
-        ("Anything But", "NOT rounds now and then. Read the ball before you tap.",
-         {"colors": [3, 3], "inverted": 0.5}, {}, None),
-        ("Mixed Signals", "NOT rounds and flips together.",
-         {"colors": [3, 3], "inverted": 0.4, "reverse": 0.5}, {}, None),
-        ("Double Negative", "Four colors, lots of NOTs.",
-         {"colors": [3, 4], "inverted": 0.5}, {}, None),
-        ("Contrary", "NOT, flips and gold zones.",
-         {"colors": [3, 4], "inverted": 0.4, "reverse": 0.6, "bonus": 0.3}, {}, None),
-    ]),
-    ("Decoys", {"coins": 200}, [
         ("Decoys", "DECOYS: a wrong color sits right next to the right one. Tap a little early or late and you lose.",
-         {"colors": [3, 3], "decoys": 1}, {"ease": 1}, None),
-        ("Close Call", "Decoys on every round. Aim for the middle.",
          {"colors": [3, 4], "decoys": 1}, {}, ["perfects:6", "ratio:60"]),
-        ("Fakeout", "Decoys and flips.",
-         {"colors": [3, 4], "decoys": 1, "reverse": 0.6}, {}, None),
-        ("Near Miss", "Decoys with NOT rounds: the wrong color might be the right one.",
-         {"colors": [3, 4], "decoys": 1, "inverted": 0.3}, {}, None),
-        ("Hall of Mirrors", "Decoys, flips and NOTs together.",
-         {"colors": [3, 4], "decoys": 1, "reverse": 0.6, "inverted": 0.3, "locks": [2, 4]}, {}, None),
+        ("Mixed Signals", "NOT rounds, decoys and flips together. Read the ball first.",
+         {"colors": [3, 4], "decoys": 1, "reverse": 0.6, "inverted": 0.4}, {}, None),
     ]),
-    ("Spin Cycle", {"coins": 50, "ball": "swirl"}, [
+    ("Spin Cycle", {"coins": 150, "tokens": 1}, [
         ("Carousel", "SPIN: the ring turns too, so zones move while the pointer moves.",
          {"colors": [2, 2], "rotate": 1}, {"ease": 1}, None),
-        ("Merry-Go-Round", "Spinning rings with more colors.",
-         {"colors": [2, 3], "rotate": 0.8}, {}, None),
-        ("Counterspin", "The ring and the pointer don't always turn the same way.",
-         {"colors": [2, 3], "rotate": 1, "reverse": 0.5}, {}, None),
-        ("Whirl", "Spin and decoys.",
-         {"colors": [3, 4], "rotate": 0.8, "decoys": 1}, {}, None),
-        ("Tilt-a-Whirl", "Spin, flips and NOTs.",
-         {"colors": [3, 4], "rotate": 0.7, "reverse": 0.5, "inverted": 0.3}, {}, None),
-    ]),
-    ("Ghosts", {"coins": 150, "tokens": 1}, [
         ("Ghosts", "GHOST: zones blink in and out. They always start visible: remember where they are.",
-         {"colors": [2, 2], "ghost": 1}, {"ease": 1}, None),
-        ("Now You See It", "More ghosts, more colors.",
-         {"colors": [2, 3], "ghost": 0.7}, {}, None),
+         {"colors": [2, 3], "ghost": 1}, {"ease": 1}, None),
         ("Haunted Carousel", "Spinning ghosts. Watch the ring, not just the pointer.",
-         {"colors": [2, 3], "ghost": 0.7, "rotate": 0.6}, {}, None),
-        ("Poltergeist", "Ghosts, flips and decoys.",
-         {"colors": [3, 4], "ghost": 0.6, "reverse": 0.6, "decoys": 1}, {}, None),
-        ("Seance", "Ghosts, NOTs and spin.",
-         {"colors": [3, 4], "ghost": 0.6, "inverted": 0.3, "rotate": 0.4}, {}, None),
+         {"colors": [3, 4], "rotate": 0.8, "ghost": 0.7, "reverse": 0.5}, {}, None),
     ]),
-    ("Split Second", {"theme": "ocean"}, [
+    ("Split Second", {"coins": 50, "ball": "swirl"}, [
         ("Two at Once", "SPLIT: the ball is two colors. Hit the left one first, then the right one, in one lap.",
          {"colors": [2, 3], "split": 1}, {"ease": 1, "addTargets": -2}, None),
         ("Split Decision", "Splits that change direction. The second color is always after the first.",
          {"colors": [2, 4], "split": 0.7, "reverse": 1}, {}, None),
-        ("Double Take", "Splits with four colors.",
-         {"colors": [3, 4], "split": 0.6}, {}, None),
-        ("Splitting Hairs", "Splits and decoys.",
-         {"colors": [3, 4], "split": 0.5, "decoys": 1}, {}, None),
-        ("Divide and Conquer", "Splits, NOTs and spin.",
-         {"colors": [3, 4], "split": 0.5, "inverted": 0.3, "rotate": 0.4}, {}, None),
+        ("Power Play", "Lots of power-ups. Collect a shield and keep it to the end.",
+         {"colors": [2, 4], "split": 0.3, "inverted": 0.3, "decoys": 1}, {"powerUpChance": 0.4, "powerUpTypes": ["shield"]}, ["shield", "streak:6"]),
     ]),
     ("Fever Pitch", {"coins": 250, "tokens": 1}, [
         ("Fever Pitch", "5 Perfects in a row starts FEVER: double points and a faster pointer. A Good ends it.",
-         {"colors": [1, 2]}, {"ease": 1}, ["fevers:1", "streak:6"]),
-        ("Heat Wave", "Every Perfect during Fever scores double. Keep it going.",
-         {"colors": [2, 2]}, {}, ["fevers:1", "streak:8"]),
-        ("Hot and Cold", "Fever through flips.",
-         {"colors": [2, 3], "reverse": 0.6}, {}, ["fevers:1", "streak:7"]),
-        ("Wildfire", "Fever on a spinning ring.",
-         {"colors": [2, 3], "rotate": 0.5}, {}, ["fevers:1", "streak:8"]),
-        ("Inferno", "Fever with decoys and flips.",
-         {"colors": [3, 4], "decoys": 1, "reverse": 0.5}, {}, ["fevers:1", "ratio:75"]),
+         {"colors": [1, 2]}, {"ease": 2}, ["fevers:1", "streak:6"]),
+        ("Heat Wave", "Every Perfect during Fever scores double. Keep it going through flips.",
+         {"colors": [2, 3], "reverse": 0.5}, {}, ["fevers:1", "streak:8"]),
+        ("Inferno", "Fever with decoys and holds.",
+         {"colors": [3, 4], "decoys": 1, "hold": 0.3}, {}, ["fevers:1", "ratio:70"]),
     ]),
-    ("Memory", {"coins": 50, "ball": "star"}, [
+    ("Memory", {"coins": 50, "theme": "ocean"}, [
         ("Remember", "BOSS: colors flash in the ball one at a time. Remember them, then hit them in that order.",
-         {"colors": [1, 2]}, {"targets": 4, "bossEvery": 2, "bossLength": [3, 3], "ease": 2}, ["perfects:3", "streak:4"]),
-        ("Recall", "Two bosses, with normal rounds between them.",
-         {"colors": [2, 2]}, {"targets": 6, "bossEvery": 2, "bossLength": [3, 3]}, ["perfects:5", "streak:5"]),
+         {"colors": [1, 2]}, {"targets": 4, "bossEvery": 2, "bossLength": [3, 3], "ease": 3}, ["perfects:3", "streak:4"]),
         ("Long Memory", "Four colors to remember this time.",
-         {"colors": [2, 2]}, {"targets": 6, "bossEvery": 2, "bossLength": [4, 4]}, ["perfects:6", "streak:5"]),
+         {"colors": [2, 2]}, {"targets": 6, "bossEvery": 2, "bossLength": [4, 4], "ease": 2}, ["perfects:6", "streak:5"]),
         ("Boss Rush", "A boss every other round, with NOT rounds in between.",
-         {"colors": [3, 3], "inverted": 0.5}, {"targets": 8, "bossEvery": 2, "bossLength": [3, 4]}, ["perfects:8", "streak:6"]),
-        ("Mind Palace", "Long sequences between flips.",
-         {"colors": [3, 3], "reverse": 0.5}, {"targets": 9, "bossEvery": 3, "bossLength": [4, 4]}, ["perfects:9", "streak:6"]),
+         {"colors": [3, 3], "inverted": 0.5}, {"targets": 9, "bossEvery": 2, "bossLength": [3, 4]}, ["perfects:8", "streak:6"]),
     ]),
-    ("Combo Craft", {"coins": 300, "tokens": 2}, [
-        ("Steady Hands", "Every 3 Perfects in a row raise your combo multiplier, up to x5. A Good resets it.",
-         {"colors": [1, 2]}, {"ease": 1}, ["combo:3", "streak:6"]),
-        ("Rhythm", "Long Perfect streaks on a calm ring.",
-         {"colors": [2, 2]}, {}, ["combo:4", "streak:9"]),
-        ("Flow", "Keep the combo going through flips.",
-         {"colors": [2, 3], "reverse": 0.5}, {}, ["combo:4", "ratio:70"]),
-        ("In the Zone", "Keep the combo going on a spinning ring.",
-         {"colors": [2, 3], "rotate": 0.4}, {}, ["combo:5", "ratio:70"]),
-        ("Perfectionist", "Nothing but Perfects.",
-         {"colors": [2, 3], "reverse": 0.4, "decoys": 1}, {}, ["combo:5", "ratio:80"]),
-    ]),
-    ("Mastery", {"coins": 500, "tokens": 3}, [
+    ("Mastery", {"coins": 500, "tokens": 3, "ball": "star"}, [
         ("Chaos", "Everything you have learned, mixed.",
          {"colors": [2, 4], "hold": 0.2, "reverse": 0.5, "decoys": 1, "rotate": 0.4, "bonus": 0.2, "inverted": 0.2, "split": 0.2, "ghost": 0.2, "locks": [3, 4]}, {"powerUpChance": 0.15}, None),
         ("Gauntlet", "Longer, with a boss in the middle.",
-         {"colors": [3, 4], "reverse": 0.6, "decoys": 1, "rotate": 0.5, "inverted": 0.25, "split": 0.25, "ghost": 0.25, "locks": [3, 5]}, {"addTargets": 4, "bossEvery": 11, "bossLength": [4, 4]}, None),
-        ("Storm", "Fast spins, ghosts and holds.",
-         {"colors": [3, 4], "hold": 0.25, "reverse": 0.6, "rotate": 0.7, "ghost": 0.3, "decoys": 1}, {}, None),
-        ("Endgame", "No mercy: decoys, splits and NOTs.",
-         {"colors": [3, 4], "reverse": 0.6, "decoys": 1, "inverted": 0.35, "split": 0.35, "rotate": 0.4}, {}, None),
+         {"colors": [3, 4], "hold": 0.2, "reverse": 0.6, "decoys": 1, "rotate": 0.5, "inverted": 0.25, "split": 0.25, "ghost": 0.25, "locks": [3, 5]}, {"addTargets": 4, "bossEvery": 11, "bossLength": [4, 4]}, None),
         ("Hue Master", "The final test. Three stars here means you have mastered Hue Lock.",
          {"colors": [3, 4], "hold": 0.2, "reverse": 0.6, "decoys": 1, "rotate": 0.6, "inverted": 0.3, "split": 0.3, "ghost": 0.3, "bonus": 0.2, "locks": [4, 5]}, {"addTargets": 6, "bossEvery": 13, "bossLength": [4, 4]}, None),
     ]),
@@ -193,23 +106,23 @@ CHAPTERS = [
 
 def unlock_stars(chapter):
     """About half the stars of the chapters before it (1.5 per level)."""
-    return round(chapter * 5 * 1.5)
+    return round(chapter * 3 * 1.5)
 
 
 def level(g, title, teaches, stage, extra, goals):
     """[g] is the level's 0-based position on the whole map."""
     ease = extra.get("ease", 0)
-    d = max(0, g - 3 * ease)  # lessons play like a few levels earlier
+    d = max(0, g - ease)  # lessons play like an earlier level
     # "targets" sets the count; "addTargets" adjusts the usual one.
-    targets = extra.get("targets", 8 + d // 5 + extra.get("addTargets", 0))
+    targets = extra.get("targets", 8 + d // 3 + extra.get("addTargets", 0))
     out = {
         "title": title,
         "teaches": teaches,
         "targets": targets,
-        "speed": round(90 + 1.1 * d) + extra.get("speedDelta", 0),
-        "speedPerTarget": round(0.8 + 0.02 * d, 2),
-        "size": round(64 - 0.3 * d + extra.get("sizeDelta", 0), 1),
-        "sizePerTarget": round(-0.1 - 0.006 * d, 3),
+        "speed": round(90 + 2.2 * d) + extra.get("speedDelta", 0),
+        "speedPerTarget": round(0.8 + 0.04 * d, 2),
+        "size": round(64 - 0.6 * d + extra.get("sizeDelta", 0), 1),
+        "sizePerTarget": round(-0.1 - 0.012 * d, 3),
         "stage": stage,
     }
     for k in ("powerUpChance", "powerUpTypes", "bossEvery", "bossLength"):
@@ -219,7 +132,7 @@ def level(g, title, teaches, stage, extra, goals):
         hits = targets * (2 if stage.get("split", 0) >= 0.5 else 1)
         goals = [
             f"perfects:{max(2, math.ceil(targets * 0.5))}",
-            f"streak:{min(hits, 3 + d // 9)}",
+            f"streak:{min(hits, 3 + d // 5)}",
         ]
     out["goals"] = goals
     if extra.get("focus"):

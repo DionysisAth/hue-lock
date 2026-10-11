@@ -22,7 +22,7 @@ SHOTS = [
     ("2_perfect", "CHAIN PERFECTS", "INTO FEVER", RED),
     ("3_not", "RULES THAT", "FLIP ON YOU", BLUE),
     ("4_boss", "REMEMBER THE", "BOSS SEQUENCE", GREEN),
-    ("5_levels", "60 LEVELS", "TO MASTER", YELLOW),
+    ("5_levels", "30 LEVELS", "TO MASTER", YELLOW),
     ("6_game_over", "SO CLOSE.", "ONE MORE TRY?", RED),
     ("7_perks", "BEAT THE BOSS,", "PICK A PERK", GREEN),
     ("8_hold_focus", "HOLD ON,", "SLOW DOWN TIME", BLUE),

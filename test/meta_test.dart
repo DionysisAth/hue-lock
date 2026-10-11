@@ -299,10 +299,10 @@ void main() {
       e.tap(e.time + timeUntil(e, target.center));
     }
 
-    test('70 levels in 14 chapters, unlocked one by one', () {
-      expect(levels, hasLength(70));
-      expect(levels.map((l) => l.chapter).toSet(), hasLength(14));
-      expect(levels.map((l) => l.id).toSet(), hasLength(70));
+    test('30 levels in 10 chapters, unlocked one by one', () {
+      expect(levels, hasLength(30));
+      expect(levels.map((l) => l.chapter).toSet(), hasLength(10));
+      expect(levels.map((l) => l.id).toSet(), hasLength(30));
       expect(levelUnlocked(levels, {}, 0), isTrue);
       expect(levelUnlocked(levels, {}, 1), isFalse);
       expect(levelUnlocked(levels, {'L1': 1}, 1), isTrue);
@@ -333,7 +333,7 @@ void main() {
 
     test('chapters open at a star count and pay out once', () {
       final chapters = chaptersOf(levels);
-      expect(chapters, hasLength(14));
+      expect(chapters, hasLength(10));
       expect(chapters.first.unlockStars, 0);
       for (var i = 1; i < chapters.length; i++) {
         expect(

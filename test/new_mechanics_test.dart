@@ -185,12 +185,21 @@ void main() {
 
     test('when time runs out the run ends and is reported once', () {
       final events = <GameEvent>[];
-      final e = newEngine(events)..startRun(best: 0, mode: RunMode.rush);
+      final e = newEngine(events)
+        ..startRun(best: 0, seed: 1, mode: RunMode.rush);
+      // Play until the clock runs out (a tap on the game-over screen would
+      // restart the run, so stop as soon as time is up).
       var guard = 0;
-      while (e.phase != GamePhase.gameOver && guard++ < 2000) {
-        tapTargetCenter(e);
-        if (e.phase == GamePhase.dying) advance(e, 1);
+      while (events.whereType<TimeUpEvent>().isEmpty && guard++ < 2000) {
+        if (e.phase == GamePhase.playing &&
+            e.round!.currentPrimary.hold == false &&
+            timeUntil(e, e.round!.currentPrimary.center) > e.rushLeft) {
+          advance(e, e.rushLeft + 0.1);
+        } else {
+          tapTargetCenter(e);
+        }
       }
+      advance(e, 1);
       expect(e.phase, GamePhase.gameOver);
       final up = events.whereType<TimeUpEvent>().single.summary;
       expect(up.mode, RunMode.rush);

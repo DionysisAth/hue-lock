@@ -431,7 +431,7 @@ final achievementDefs = <AchievementDef>[
     'levels_all',
     'Graduate',
     'Clear every level',
-    (p) => p.stat(Stat.levelsDone) >= 70,
+    (p) => p.stat(Stat.levelsDone) >= 30,
   ),
   AchievementDef(
     'level_10',

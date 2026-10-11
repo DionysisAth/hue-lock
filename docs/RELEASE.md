@@ -118,7 +118,7 @@ This needs the app created in Play Console first (section 1, step 3).
    - `Endless`: the best Endless score
    - `Daily Challenge`
    - `Rush`: one-minute mode
-   - `Level stars`: limit it to 0 – 210
+   - `Level stars`: limit it to 0 – 90
 
    Play Games keeps daily, weekly and all-time views of each one.
 5. **Achievements (optional):** one per entry in `achievementDefs` in
