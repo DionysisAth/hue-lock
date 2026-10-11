@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hue_lock/game/game_engine.dart';
 import 'package:hue_lock/main.dart' as app;
 import 'package:hue_lock/ui/game_screen.dart';
+import 'package:hue_lock/ui/home_overlay.dart';
 import 'package:integration_test/integration_test.dart';
 
 /// Pumps one real frame, failing loudly (instead of hanging forever) if the
@@ -77,7 +78,7 @@ void main() {
   testWidgets('full game flow on device', (tester) async {
     app.main();
     await waitFor(tester, find.text('TAP TO PLAY'));
-    expect(find.text('HUE LOCK'), findsOneWidget);
+    expect(find.byType(GameTitle), findsOneWidget);
 
     final view = tester.view;
     final size = view.physicalSize / view.devicePixelRatio;
