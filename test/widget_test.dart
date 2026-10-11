@@ -146,6 +146,57 @@ void _progressionTests() {
     expect(find.text('0:59'), findsOneWidget);
   });
 
+  testWidgets('pause in any mode: the run freezes, RESUME counts down, QUIT '
+      'goes home', (tester) async {
+    final s = fakeServices(
+      profile: PlayerProfile()..seenIntros.addAll(intros.keys),
+    );
+    await tester.pumpWidget(HueLockApp(services: s));
+    await tester.pump();
+    await tester.tap(find.text('RUSH'));
+    await tester.pump(const Duration(milliseconds: 16));
+    final e =
+        (tester.state(find.byType(GameScreen)) as dynamic).engine as GameEngine;
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await tester.tap(find.bySemanticsLabel('Pause'));
+    await tester.pump();
+    expect(find.text('PAUSED'), findsOneWidget);
+    final left = e.rushLeft;
+    final time = e.time;
+    for (var i = 0; i < 60; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(e.rushLeft, left, reason: 'the Rush clock stands still');
+    expect(e.time, time);
+    // Taps on the menu never reach the game.
+    await tester.tapAt(const Offset(200, 120));
+    await tester.pump();
+    expect(e.paused, isTrue);
+
+    await tester.tap(find.text('RESUME'));
+    await tester.pump();
+    expect(find.text('PAUSED'), findsNothing);
+    expect(e.phase, GamePhase.countdown);
+    expect(e.showCountdownNumber, isTrue);
+
+    // Zen too: END ZEN goes home.
+    await tester.tap(find.bySemanticsLabel('Pause'));
+    await tester.pump();
+    await tester.tap(find.text('QUIT'));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(e.phase, GamePhase.home);
+    await tester.tap(find.text('ZEN'));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(e.mode, RunMode.zen);
+    await tester.tap(find.bySemanticsLabel('Pause'));
+    await tester.pump();
+    await tester.tap(find.text('END ZEN'));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(e.phase, GamePhase.home);
+  });
+
   testWidgets('signed in: weekly rank on home, the player to pass on game '
       'over', (tester) async {
     final games = GameServices(enabled: false)

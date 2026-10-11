@@ -615,6 +615,7 @@ class GameEngine extends ChangeNotifier {
     focusUses = 0;
     holdsCleared = 0;
     this.focus = 0;
+    paused = false;
     focusActive = false;
     bestMultiplier = 1;
     powerUpsCollected = 0;
@@ -660,6 +661,7 @@ class GameEngine extends ChangeNotifier {
 
   void goHome() {
     finishRun();
+    paused = false;
     config = baseConfig;
     mode = RunMode.endless;
     if (round != null) _idleAngle = round!.pointerAngleAt(time);
@@ -678,6 +680,11 @@ class GameEngine extends ChangeNotifier {
   /// [dt] is real time; the game clock runs at [timeScale].
   void tick(double dt) {
     if (dt <= 0) return;
+    if (paused) {
+      // Frozen: only the last effects play out.
+      effects.update(dt);
+      return;
+    }
     final scale = timeScale;
     time += dt * scale;
     effects.update(dt);
@@ -1482,6 +1489,34 @@ class GameEngine extends ChangeNotifier {
   /// Called when the app goes to the background mid-run.
   void pause() {
     if (phase == GamePhase.playing) _startCountdown();
+  }
+
+  /// The player paused the run (pause button): everything stands still,
+  /// clocks included, until [resume].
+  bool paused = false;
+
+  /// A run can be paused while it is being played (not while a hold zone is
+  /// held, not on the perk choice or game over).
+  bool get canPause =>
+      !paused &&
+      (phase == GamePhase.playing || phase == GamePhase.countdown) &&
+      !(round?.holding ?? false);
+
+  void pauseByPlayer() {
+    if (!canPause) return;
+    if (focusActive) _stopFocus();
+    if (phase == GamePhase.playing) _startCountdown();
+    paused = true;
+    notifyListeners();
+  }
+
+  /// Back to the game after a "3-2-1" (or straight back into an intro /
+  /// boss banner that was showing).
+  void resume() {
+    if (!paused) return;
+    paused = false;
+    if (phase == GamePhase.countdown && _countdownNumber) _startCountdown();
+    notifyListeners();
   }
 
   void _startCountdown() {

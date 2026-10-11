@@ -26,6 +26,7 @@ import 'hud.dart';
 import 'levels_screen.dart';
 import 'mode_dialogs.dart';
 import 'focus_button.dart';
+import 'pause_overlay.dart';
 import 'perk_overlay.dart';
 import 'progress_screen.dart';
 import 'settings_screen.dart';
@@ -108,14 +109,19 @@ class _GameScreenState extends State<GameScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) {
-      // Never let a run continue while the player can't see it.
-      engine.pause();
+      // Never let a run continue while the player can't see it: open the
+      // pause menu (or freeze behind a 3-2-1 where it can't open).
+      if (engine.canPause) {
+        engine.pauseByPlayer();
+      } else {
+        engine.pause();
+      }
       _lastFrameStamp = null;
       if (state != AppLifecycleState.inactive) s.music.suspend();
       if (state == AppLifecycleState.paused) {
         s.gameServices.saveProfile(s.profile.profile);
       }
-    } else {
+    } else if (!engine.paused) {
       s.music.resume();
     }
   }
@@ -695,6 +701,37 @@ class _GameScreenState extends State<GameScreen>
     }
   }
 
+  void _pause() {
+    if (!engine.canPause) return;
+    s.audio.play(Sfx.ui);
+    engine.pauseByPlayer();
+    s.music.suspend();
+  }
+
+  void _resume() {
+    s.audio.play(Sfx.ui);
+    engine.resume();
+    s.music.resume();
+  }
+
+  /// Quit from the pause menu: the run ends (and is reported) and the game
+  /// goes home.
+  void _quit() {
+    s.music.resume();
+    _goHome();
+  }
+
+  /// Android back: pauses a run, closes the pause menu, leaves a game over.
+  void _onBack() {
+    if (engine.paused) {
+      _resume();
+    } else if (engine.canPause) {
+      _pause();
+    } else if (engine.phase == GamePhase.gameOver && !_adBusy) {
+      _goHome();
+    }
+  }
+
   Future<void> _goHome() async {
     s.audio.play(Sfx.ui);
     final p = s.profile.profile;
@@ -866,77 +903,89 @@ class _GameScreenState extends State<GameScreen>
         final p = s.profile.profile;
         final theme = ringThemeById(p.theme);
         final palette = HuePalette.of(colorblind: p.colorblind);
-        return Scaffold(
-          backgroundColor: theme.bgBottom,
-          body: RepaintBoundary(
-            key: _shotKey,
-            child: Stack(
-              children: [
-                // The game repaints every frame on its own layer; the HUD
-                // and overlays only repaint when they change.
-                Positioned.fill(
-                  child: Listener(
-                    behavior: HitTestBehavior.opaque,
-                    onPointerDown: _onPointerDown,
-                    onPointerUp: _onPointerUp,
-                    onPointerCancel: _onPointerUp,
-                    child: RepaintBoundary(
-                      child: CustomPaint(
-                        painter: GamePainter(
-                          engine: engine,
-                          theme: theme,
-                          skin: ballSkinById(p.ball),
-                          palette: palette,
-                          colorblind: p.colorblind,
-                          repaint: _frame,
-                          pixelRatio: MediaQuery.devicePixelRatioOf(context),
+        return PopScope(
+          canPop: engine.phase == GamePhase.home,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) _onBack();
+          },
+          child: Scaffold(
+            backgroundColor: theme.bgBottom,
+            body: RepaintBoundary(
+              key: _shotKey,
+              child: Stack(
+                children: [
+                  // The game repaints every frame on its own layer; the HUD
+                  // and overlays only repaint when they change.
+                  Positioned.fill(
+                    child: Listener(
+                      behavior: HitTestBehavior.opaque,
+                      onPointerDown: _onPointerDown,
+                      onPointerUp: _onPointerUp,
+                      onPointerCancel: _onPointerUp,
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: GamePainter(
+                            engine: engine,
+                            theme: theme,
+                            skin: ballSkinById(p.ball),
+                            palette: palette,
+                            colorblind: p.colorblind,
+                            repaint: _frame,
+                            pixelRatio: MediaQuery.devicePixelRatioOf(context),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                Positioned.fill(child: RepaintBoundary(child: _overlay(theme))),
-                if (_showFocusButton)
-                  Positioned(
-                    right: p.focusLeft ? null : 18,
-                    left: p.focusLeft ? 18 : null,
-                    bottom: 0,
-                    child: SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 18),
-                        child: FocusButton(
-                          engine: engine,
-                          frame: _frame,
-                          theme: theme,
+                  Positioned.fill(
+                    child: RepaintBoundary(child: _overlay(theme)),
+                  ),
+                  if (_showFocusButton)
+                    Positioned(
+                      right: p.focusLeft ? null : 18,
+                      left: p.focusLeft ? 18 : null,
+                      bottom: 0,
+                      child: SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 18),
+                          child: FocusButton(
+                            engine: engine,
+                            frame: _frame,
+                            theme: theme,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                if (engine.mode == RunMode.zen &&
-                    engine.phase != GamePhase.home)
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    child: SafeArea(
-                      child: IconButton(
-                        tooltip: 'End Zen',
-                        onPressed: _goHome,
-                        icon: Icon(Icons.close_rounded, color: theme.text),
+                  if (_toasts.isNotEmpty)
+                    Positioned(
+                      left: 24,
+                      right: 24,
+                      top: 0,
+                      child: SafeArea(
+                        child: IgnorePointer(
+                          child: _Toast(text: _toasts.first, theme: theme),
+                        ),
                       ),
                     ),
-                  ),
-                if (_toasts.isNotEmpty)
-                  Positioned(
-                    left: 24,
-                    right: 24,
-                    top: 0,
-                    child: SafeArea(
-                      child: IgnorePointer(
-                        child: _Toast(text: _toasts.first, theme: theme),
+                  if (engine.canPause)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      child: SafeArea(
+                        child: PauseButton(theme: theme, onPressed: _pause),
                       ),
                     ),
-                  ),
-              ],
+                  if (engine.paused)
+                    Positioned.fill(
+                      child: PauseOverlay(
+                        engine: engine,
+                        theme: theme,
+                        onResume: _resume,
+                        onQuit: _quit,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         );
@@ -992,7 +1041,7 @@ class _GameScreenState extends State<GameScreen>
             ),
             // Holds behind a banner (boss preview, NOT / split warning) show
             // no number; only continue / resume count down.
-            if (engine.showCountdownNumber)
+            if (engine.showCountdownNumber && !engine.paused)
               IgnorePointer(
                 child: Center(
                   child: ListenableBuilder(
