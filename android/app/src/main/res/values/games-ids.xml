@@ -3,5 +3,5 @@
     <!-- Play Console > Play Games Services > Configuration > "Project ID"
          (digits only). Empty = Play Games disabled; the game then uses its
          local leaderboard / achievements / save instead. -->
-    <string name="game_services_project_id" translatable="false"></string>
+    <string name="game_services_project_id" translatable="false">884760255621</string>
 </resources>
