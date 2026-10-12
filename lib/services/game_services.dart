@@ -9,28 +9,58 @@ import '../services/profile_store.dart';
 /// Google Play Games (Android) and Game Center (iOS): free leaderboards,
 /// achievements and cloud save, no server of our own.
 ///
-/// Disabled until the game is set up in Play Console / App Store Connect
-/// (docs/RELEASE.md, section 4). To enable:
-/// 1. Android: put the Play Games project id in
-///    android/app/src/main/res/values/games-ids.xml.
-/// 2. iOS: enable the Game Center capability in Xcode.
-/// 3. Fill in the ids below and set [configured] to true.
+/// Android: Play Games project 884760255621 (games-ids.xml); the ids below
+/// were created with the Play Games Services Publishing API. iOS: enable
+/// the Game Center capability in Xcode and create the same ids (the `ios`
+/// values) in App Store Connect.
 abstract final class GameServiceIds {
-  static const configured = false;
+  static const configured = true;
 
   /// Endless best. Play Games and Game Center also keep daily and weekly
   /// views of every leaderboard, which the weekly rank uses.
-  static const endlessLeaderboard = (android: '', ios: 'hue_lock_endless');
-  static const dailyLeaderboard = (android: '', ios: 'hue_lock_daily');
+  static const endlessLeaderboard = (
+    android: 'CgkIhbnI_t8ZEAIQAQ',
+    ios: 'hue_lock_endless',
+  );
+  static const dailyLeaderboard = (
+    android: 'CgkIhbnI_t8ZEAIQAg',
+    ios: 'hue_lock_daily',
+  );
 
   /// Rush mode (one minute).
-  static const rushLeaderboard = (android: '', ios: 'hue_lock_rush');
+  static const rushLeaderboard = (
+    android: 'CgkIhbnI_t8ZEAIQAw',
+    ios: 'hue_lock_rush',
+  );
 
   /// Total stars on the Levels map.
-  static const starsLeaderboard = (android: '', ios: 'hue_lock_stars');
+  static const starsLeaderboard = (
+    android: 'CgkIhbnI_t8ZEAIQBA',
+    ios: 'hue_lock_stars',
+  );
 
   /// Achievement id per local achievement id (see achievementDefs).
-  static const achievements = <String, ({String android, String ios})>{};
+  static const achievements = <String, ({String android, String ios})>{
+    'first_lock': (android: 'CgkIhbnI_t8ZEAIQBQ', ios: 'hue_lock_first_lock'),
+    'score_50': (android: 'CgkIhbnI_t8ZEAIQBg', ios: 'hue_lock_score_50'),
+    'score_250': (android: 'CgkIhbnI_t8ZEAIQBw', ios: 'hue_lock_score_250'),
+    'score_1000': (android: 'CgkIhbnI_t8ZEAIQCA', ios: 'hue_lock_score_1000'),
+    'streak_10': (android: 'CgkIhbnI_t8ZEAIQCQ', ios: 'hue_lock_streak_10'),
+    'streak_25': (android: 'CgkIhbnI_t8ZEAIQCg', ios: 'hue_lock_streak_25'),
+    'fever_1': (android: 'CgkIhbnI_t8ZEAIQCw', ios: 'hue_lock_fever_1'),
+    'combo_5': (android: 'CgkIhbnI_t8ZEAIQDA', ios: 'hue_lock_combo_5'),
+    'boss_1': (android: 'CgkIhbnI_t8ZEAIQDQ', ios: 'hue_lock_boss_1'),
+    'boss_10': (android: 'CgkIhbnI_t8ZEAIQDg', ios: 'hue_lock_boss_10'),
+    'stage_3': (android: 'CgkIhbnI_t8ZEAIQDw', ios: 'hue_lock_stage_3'),
+    'stage_6': (android: 'CgkIhbnI_t8ZEAIQEA', ios: 'hue_lock_stage_6'),
+    'not_50': (android: 'CgkIhbnI_t8ZEAIQEQ', ios: 'hue_lock_not_50'),
+    'greedy_25': (android: 'CgkIhbnI_t8ZEAIQEg', ios: 'hue_lock_greedy_25'),
+    'runs_100': (android: 'CgkIhbnI_t8ZEAIQEw', ios: 'hue_lock_runs_100'),
+    'daily_7': (android: 'CgkIhbnI_t8ZEAIQFA', ios: 'hue_lock_daily_7'),
+    'duel_win': (android: 'CgkIhbnI_t8ZEAIQFQ', ios: 'hue_lock_duel_win'),
+    'levels_all': (android: 'CgkIhbnI_t8ZEAIQFg', ios: 'hue_lock_levels_all'),
+    'level_10': (android: 'CgkIhbnI_t8ZEAIQFw', ios: 'hue_lock_level_10'),
+  };
 }
 
 /// Where the player stands on a leaderboard this week, and the player just
