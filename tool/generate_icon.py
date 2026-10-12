@@ -18,11 +18,13 @@ import math
 import os
 import sys
 
+import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 BG_TOP = (0x1A, 0x1B, 0x33)
+BG_GLOW = (0x2E, 0x26, 0x5C)
 BG_BOTTOM = (0x0B, 0x0C, 0x18)
 TRACK = (0x35, 0x38, 0x57)
 RED = (0xFF, 0x3D, 0x6E)
@@ -34,18 +36,19 @@ WHITE = (255, 255, 255)
 SS = 4  # supersampling for smooth edges
 
 # Zones: (center angle in degrees, clockwise from 12 o'clock; width; color).
-ZONES = [(-50, 62, RED), (40, 62, YELLOW), (140, 56, BLUE), (225, 56, GREEN)]
-POINTER = 40  # locked on the yellow zone
+ZONES = [(-45, 86, RED), (45, 86, YELLOW), (135, 86, BLUE), (225, 86, GREEN)]
+POINTER = 45  # locked on the yellow zone
 
 
 def _gradient(size):
-    img = Image.new("RGB", (size, size))
-    d = ImageDraw.Draw(img)
-    for y in range(size):
-        k = y / max(1, size - 1)
-        c = tuple(round(a + (b - a) * k) for a, b in zip(BG_TOP, BG_BOTTOM))
-        d.line([(0, y), (size, y)], fill=c)
-    return img.convert("RGBA")
+    """Background: a deep indigo glow behind the ring fading to near black."""
+    y, x = np.mgrid[0:size, 0:size].astype(np.float32) / max(1, size - 1)
+    d = np.sqrt((x - 0.5) ** 2 + (y - 0.46) ** 2) / 0.72
+    k = np.clip(d, 0, 1)[..., None] ** 1.2
+    inner = np.array(BG_GLOW, np.float32)
+    outer = np.array(BG_BOTTOM, np.float32)
+    rgb = inner + (outer - inner) * k
+    return Image.fromarray(rgb.astype(np.uint8), "RGB").convert("RGBA")
 
 
 def _arc_box(c, r):
@@ -57,6 +60,30 @@ def _pil_angle(deg):
     return deg - 90
 
 
+def _mix(a, b, k):
+    return tuple(round(x + (y - x) * k) for x, y in zip(a, b))
+
+
+def _sphere(S, c, r, color):
+    """A glossy ball lit from the top left (RGBA layer of size S)."""
+    y, x = np.mgrid[0:S, 0:S].astype(np.float32)
+    lx, ly = c - r * 0.38, c - r * 0.42
+    d = np.sqrt((x - lx) ** 2 + (y - ly) ** 2) / (r * 1.55)
+    d = np.clip(d, 0, 1)[..., None]
+    light = np.array(_mix(color, WHITE, 0.55), np.float32)
+    mid = np.array(color, np.float32)
+    dark = np.array(_mix(color, (150, 60, 0), 0.38), np.float32)
+    rgb = np.where(d < 0.45, light + (mid - light) * (d / 0.45),
+                   mid + (dark - mid) * ((d - 0.45) / 0.55))
+    inside = (np.sqrt((x - c) ** 2 + (y - c) ** 2) <= r).astype(np.float32)
+    a = (inside * 255)[..., None]
+    return Image.fromarray(np.concatenate([rgb, a], -1).astype(np.uint8), "RGBA")
+
+
+def _blur(img, radius):
+    return img.filter(ImageFilter.GaussianBlur(radius))
+
+
 def _art(size, scale=1.0, mono=False):
     """The ring, zones, pointer and ball on a transparent square.
 
@@ -65,78 +92,95 @@ def _art(size, scale=1.0, mono=False):
     """
     S = size * SS
     c = S / 2
-    r = S * 0.33 * scale  # ring radius (track center line)
-    w = S * 0.075 * scale  # ring width
-    ball = S * 0.155 * scale
+    r = S * 0.335 * scale  # ring radius (track center line)
+    w = S * 0.105 * scale  # ring width
+    ball = S * 0.165 * scale
     layer = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-
-    def col(rgb, a=255):
-        return (255, 255, 255, a) if mono else rgb + (a,)
-
-    if not mono:
-        # Soft glow under the zones and the ball.
-        glow = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-        g = ImageDraw.Draw(glow)
-        for center, width, color in ZONES:
-            g.arc(
-                _arc_box(c, r + w * 0.8),
-                _pil_angle(center - width / 2),
-                _pil_angle(center + width / 2),
-                fill=color + (120,),
-                width=round(w * 1.6),
-            )
-        g.ellipse(_arc_box(c, ball * 1.3), fill=YELLOW + (90,))
-        glow = glow.filter(ImageFilter.GaussianBlur(S * 0.022))
-        layer = Image.alpha_composite(layer, glow)
-
-    d = ImageDraw.Draw(layer)
-    if not mono:
-        d.ellipse(_arc_box(c, r + w / 2), outline=TRACK + (255,), width=round(w))
-    for center, width, color in ZONES:
-        d.arc(
-            _arc_box(c, r + w / 2),
-            _pil_angle(center - width / 2),
-            _pil_angle(center + width / 2),
-            fill=col(color),
-            width=round(w),
-        )
-    # Ball with a highlight.
-    if mono:
-        d.ellipse(_arc_box(c, ball), fill=col(WHITE))
-    else:
-        d.ellipse(_arc_box(c, ball), fill=YELLOW + (255,))
-        hl = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-        h = ImageDraw.Draw(hl)
-        hx, hy = c - ball * 0.32, c - ball * 0.36
-        h.ellipse(
-            [hx - ball * 0.36, hy - ball * 0.26, hx + ball * 0.36, hy + ball * 0.26],
-            fill=(255, 255, 255, 120),
-        )
-        hl = hl.filter(ImageFilter.GaussianBlur(ball * 0.08))
-        layer = Image.alpha_composite(layer, hl)
-        d = ImageDraw.Draw(layer)
-
-    # Pointer: a white bar across the ring at the yellow zone.
     a = math.radians(POINTER)
     ux, uy = math.sin(a), -math.cos(a)
-    inner, outer = r - w * 0.95, r + w * 0.95
+
+    def ring_arc(draw, radius, width, fill, center, span):
+        draw.arc(_arc_box(c, radius), _pil_angle(center - span / 2),
+                 _pil_angle(center + span / 2), fill=fill, width=max(1, round(width)))
+
+    if mono:
+        d = ImageDraw.Draw(layer)
+        for center, span, _ in ZONES:
+            ring_arc(d, r + w / 2, w, (255, 255, 255, 255), center, span)
+        d.ellipse(_arc_box(c, ball), fill=(255, 255, 255, 255))
+    else:
+        # Glow under the ring and the ball, brightest where the pointer locks.
+        for center, span, color in ZONES:
+            glow = Image.new("RGBA", (S, S), color + (0,))
+            ring_arc(ImageDraw.Draw(glow), r + w * 0.95, w * 1.9, color + (120,), center, span)
+            layer = Image.alpha_composite(layer, _blur(glow, S * 0.028))
+        glow = Image.new("RGBA", (S, S), YELLOW + (0,))
+        ImageDraw.Draw(glow).ellipse(_arc_box(c, ball * 1.4), fill=YELLOW + (90,))
+        layer = Image.alpha_composite(layer, _blur(glow, S * 0.03))
+        lx, ly = c + ux * r, c + uy * r
+        glow = Image.new("RGBA", (S, S), (255, 226, 120, 0))
+        ImageDraw.Draw(glow).ellipse([lx - w * 0.9, ly - w * 0.9, lx + w * 0.9, ly + w * 0.9], fill=(255, 226, 120, 150))
+        layer = Image.alpha_composite(layer, _blur(glow, w * 0.45))
+
+        # Ball shadow, then the glossy ball.
+        sh = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        ImageDraw.Draw(sh).ellipse(_arc_box(c, ball * 1.08), fill=(0, 0, 0, 150))
+        sh = _blur(sh, ball * 0.18)
+        layer = Image.alpha_composite(layer, ImageChops_offset(sh, 0, round(ball * 0.14)))
+        layer = Image.alpha_composite(layer, _sphere(S, c, ball, YELLOW))
+
+        d = ImageDraw.Draw(layer)
+        # Zones: tube shading (base, dark inner band, light outer band).
+        for center, span, color in ZONES:
+            ring_arc(d, r + w / 2, w, color + (255,), center, span)
+            ring_arc(d, r - w * 0.2, w * 0.3, _mix(color, (0, 0, 0), 0.18) + (255,), center, span)
+            ring_arc(d, r + w * 0.4, w * 0.16, _mix(color, WHITE, 0.4) + (255,), center, span - 5)
+
+        # Ball details: bounce light, soft and sharp highlights, rim.
+        hl = Image.new("RGBA", (S, S), (255, 255, 255, 0))
+        h = ImageDraw.Draw(hl)
+        h.arc(_arc_box(c, ball * 0.84), 10, 100, fill=_mix(YELLOW, WHITE, 0.5) + (90,), width=round(ball * 0.12))
+        hx, hy = c - ball * 0.3, c - ball * 0.4
+        h.ellipse([hx - ball * 0.36, hy - ball * 0.22, hx + ball * 0.36, hy + ball * 0.22], fill=(255, 255, 255, 170))
+        layer = Image.alpha_composite(layer, _blur(hl, ball * 0.05))
+        d = ImageDraw.Draw(layer)
+        sx, sy = c - ball * 0.4, c - ball * 0.46
+        d.ellipse([sx - ball * 0.11, sy - ball * 0.11, sx + ball * 0.11, sy + ball * 0.11], fill=(255, 255, 255, 255))
+
+    # Pointer: an outlined needle across the ring with an arrowhead outside.
+    d = ImageDraw.Draw(layer)
+    inner, outer = r - w * 0.85, r + w * 0.85
     p0 = (c + ux * inner, c + uy * inner)
     p1 = (c + ux * outer, c + uy * outer)
-    pw = w * 0.3
-    if not mono:
-        pg = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-        ImageDraw.Draw(pg).line([p0, p1], fill=(255, 255, 255, 170), width=round(pw * 2.4))
-        pg = pg.filter(ImageFilter.GaussianBlur(S * 0.012))
-        layer = Image.alpha_composite(layer, pg)
-        d = ImageDraw.Draw(layer)
+    pw = w * 0.32
+    side = (-uy, ux)
+    tip = (c + ux * (r + w * 1.0), c + uy * (r + w * 1.0))
+    back = (c + ux * (r + w * 1.55), c + uy * (r + w * 1.55))
+    head = [tip, (back[0] + side[0] * pw * 1.05, back[1] + side[1] * pw * 1.05),
+            (back[0] - side[0] * pw * 1.05, back[1] - side[1] * pw * 1.05)]
+
+    def needle(width, fill):
+        d.line([p0, p1], fill=fill, width=round(width))
+        for p in (p0, p1):
+            d.ellipse([p[0] - width / 2, p[1] - width / 2, p[0] + width / 2, p[1] + width / 2], fill=fill)
+
     if mono:
-        # Cut a gap around the pointer so it reads in one color.
-        d.line([p0, p1], fill=(0, 0, 0, 0), width=round(pw * 2.2))
-    d.line([p0, p1], fill=col(WHITE), width=round(pw))
-    for p in (p0, p1):
-        d.ellipse([p[0] - pw / 2, p[1] - pw / 2, p[0] + pw / 2, p[1] + pw / 2], fill=col(WHITE))
+        needle(pw * 2.4, (0, 0, 0, 0))  # cut a gap so it reads in one color
+        needle(pw, (255, 255, 255, 255))
+        d.polygon(head, fill=(255, 255, 255, 255))
+    else:
+        needle(pw + S * 0.012, (10, 10, 20, 170))
+        d.polygon(head, fill=(10, 10, 20, 150), outline=(10, 10, 20, 150), width=round(S * 0.008))
+        needle(pw, WHITE + (255,))
+        d.polygon(head, fill=WHITE + (255,))
 
     return layer.resize((size, size), Image.LANCZOS)
+
+
+def ImageChops_offset(img, dx, dy):
+    out = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    out.paste(img, (dx, dy))
+    return out
 
 
 def full_icon(size, shape="square"):
@@ -230,8 +274,22 @@ def store():
     d = ImageDraw.Draw(bg)
     title = _font(112)
     tag = _font(36)
-    d.text((520, 150), "HUE", font=title, fill=WHITE)
-    d.text((520, 262), "LOCK", font=title, fill=WHITE)
+    # Title in the in-game logo's rainbow gradient, with a dark extrusion.
+    mask = Image.new("L", (W, H), 0)
+    md = ImageDraw.Draw(mask)
+    md.text((520, 150), "HUE", font=title, fill=255)
+    md.text((520, 262), "LOCK", font=title, fill=255)
+    shadow = Image.new("RGBA", (W, H), (5, 5, 12, 255))
+    bg.paste(shadow, (0, 7), mask)
+    stops = [RED, BLUE, YELLOW, GREEN]
+    grad = Image.new("RGB", (W, H))
+    gd = ImageDraw.Draw(grad)
+    for x in range(W):
+        t = min(max((x - 520) / 440, 0), 1) * (len(stops) - 1)
+        i = min(int(t), len(stops) - 2)
+        gd.line([(x, 0), (x, H)], fill=_mix(stops[i], stops[i + 1], t - i))
+    bg.paste(grad.convert("RGBA"), (0, 0), mask)
+    d = ImageDraw.Draw(bg)
     x = 524
     for word, color in (("TAP", RED), ("ON", BLUE), ("ITS", YELLOW), ("COLOR", GREEN)):
         d.text((x, 395), word, font=tag, fill=color)
