@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../game/game_engine.dart';
+import '../l10n/l10n.dart';
 import '../render/palette.dart';
 import '../render/ring_themes.dart';
 import 'widgets.dart';
@@ -16,7 +17,7 @@ class PauseButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: 'Pause',
+      label: tr('Pause'),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onPressed,
@@ -58,10 +59,10 @@ class PauseOverlay extends StatelessWidget {
   final VoidCallback onQuit;
 
   String get _quitNote => switch (engine.mode) {
-    RunMode.zen => 'Your Zen session ends.',
-    RunMode.level => 'The level ends without stars.',
-    RunMode.daily => 'This attempt ends with your score so far.',
-    _ => 'The run ends with your score so far.',
+    RunMode.zen => tr('Your Zen session ends.'),
+    RunMode.level => tr('The level ends without stars.'),
+    RunMode.daily => tr('This attempt ends with your score so far.'),
+    _ => tr('The run ends with your score so far.'),
   };
 
   @override
@@ -84,7 +85,7 @@ class PauseOverlay extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'PAUSED',
+                  tr('PAUSED'),
                   style: TextStyle(
                     color: theme.text,
                     fontSize: 40,
@@ -94,7 +95,7 @@ class PauseOverlay extends StatelessWidget {
                 ),
                 const SizedBox(height: 28),
                 PillButton(
-                  label: 'RESUME',
+                  label: tr('RESUME'),
                   icon: Icons.play_arrow_rounded,
                   theme: theme,
                   color: HuePalette.standard[3],
@@ -102,7 +103,9 @@ class PauseOverlay extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 PillButton(
-                  label: engine.mode == RunMode.zen ? 'END ZEN' : 'QUIT',
+                  label: engine.mode == RunMode.zen
+                      ? tr('END ZEN')
+                      : tr('QUIT'),
                   icon: Icons.home_rounded,
                   theme: theme,
                   filled: false,

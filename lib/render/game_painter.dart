@@ -9,6 +9,7 @@ import '../game/effects.dart';
 import '../game/game_engine.dart';
 import '../game/hit_judge.dart';
 import '../game/round.dart';
+import '../l10n/l10n.dart';
 import 'ball_skins.dart';
 import 'palette.dart';
 import 'ring_themes.dart';
@@ -902,7 +903,7 @@ class GamePainter extends CustomPainter {
           p,
         );
       }
-      _label(canvas, 'NOT', c + Offset(0, br * 1.42), br * 0.36);
+      _label(canvas, tr('NOT'), c + Offset(0, br * 1.42), br * 0.36);
     }
 
     if (colorblind && colors.length == 1) {

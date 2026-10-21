@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import '../config/game_config.dart';
 import '../game/star_goals.dart';
+import '../l10n/l10n.dart';
 import '../services/profile_store.dart';
 
 /// What finishing every level of a chapter gives (once).
@@ -29,13 +30,16 @@ const chapterStarBonus = ChapterReward(coins: 50, tokens: 1);
 class ChapterDef {
   ChapterDef({
     required this.index,
-    required this.title,
+    required String title,
     required this.unlockStars,
     required this.reward,
-  });
+  }) : titleEn = title;
 
   final int index;
-  final String title;
+
+  /// English title (from levels.json); [title] is translated.
+  final String titleEn;
+  String get title => tr(titleEn);
 
   /// Total level stars needed to open this chapter.
   final int unlockStars;
@@ -52,21 +56,26 @@ class LevelDef {
   LevelDef({
     required this.index,
     required this.chapterDef,
-    required this.title,
-    required this.teaches,
+    required String title,
+    required String teaches,
     required this.targets,
     required this.overrides,
     required this.goals,
     this.focus = false,
-  });
+  }) : titleEn = title,
+       teachesEn = teaches;
 
   /// 0-based position in the whole list; also the run seed.
   final int index;
   final ChapterDef chapterDef;
-  final String title;
+
+  /// English title and lesson (from levels.json); the getters translate.
+  final String titleEn;
+  final String teachesEn;
+  String get title => tr(titleEn);
 
   /// One-line lesson shown before the level starts.
-  final String teaches;
+  String get teaches => tr(teachesEn);
 
   /// Rounds to clear.
   final int targets;

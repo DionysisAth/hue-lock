@@ -10,22 +10,23 @@ import '../app.dart';
 import '../game/effects.dart';
 import '../game/game_engine.dart';
 import '../game/hit_judge.dart';
+import '../l10n/l10n.dart';
 import '../meta/levels.dart';
 import '../meta/progression.dart';
-import '../services/profile_store.dart';
 import '../render/ball_skins.dart';
 import '../render/game_painter.dart';
 import '../render/palette.dart';
 import '../render/ring_themes.dart';
 import '../render/text_sprites.dart';
 import '../services/feedback.dart';
+import '../services/profile_store.dart';
+import 'focus_button.dart';
 import 'game_over_overlay.dart';
 import 'home_overlay.dart';
 import 'how_to_play_screen.dart';
 import 'hud.dart';
 import 'levels_screen.dart';
 import 'mode_dialogs.dart';
-import 'focus_button.dart';
 import 'pause_overlay.dart';
 import 'perk_overlay.dart';
 import 'progress_screen.dart';
@@ -178,9 +179,9 @@ class _GameScreenState extends State<GameScreen>
       final dpr = View.of(context).devicePixelRatio;
       for (var c = 0; c < 4; c++) {
         for (final word in [
-          'PERFECT',
+          tr('PERFECT'),
           for (var m = 2; m <= s.config.scoring.maxMultiplier; m++)
-            'PERFECT x$m',
+            tr('PERFECT x{n}', {'n': m}),
         ]) {
           TextSprites.get(
             word,
@@ -193,7 +194,7 @@ class _GameScreenState extends State<GameScreen>
       }
       // Combo breaks happen mid-run too.
       TextSprites.get(
-        'COMBO LOST',
+        tr('COMBO LOST'),
         color: theme.text,
         fontSize: 20,
         glow: theme.dark ? 12 : 0,
@@ -201,7 +202,7 @@ class _GameScreenState extends State<GameScreen>
       );
       for (var m = 2; m < s.config.scoring.maxMultiplier; m++) {
         TextSprites.get(
-          'COMBO SAVED x$m',
+          tr('COMBO SAVED x{n}', {'n': m}),
           color: palette[2],
           fontSize: 20,
           glow: theme.dark ? 12 : 0,
@@ -552,14 +553,25 @@ class _GameScreenState extends State<GameScreen>
           for (final (c, r) in _chapterRewards) {
             _toast(
               r == chapterStarBonus
-                  ? 'Every star in ${c.title}! ${_rewardText(r)}'
-                  : 'Chapter ${c.number} complete! ${_rewardText(r)}',
+                  ? tr('Every star in {chapter}! {reward}', {
+                      'chapter': c.title,
+                      'reward': _rewardText(r),
+                    })
+                  : tr('Chapter {n} complete! {reward}', {
+                      'n': c.number,
+                      'reward': _rewardText(r),
+                    }),
             );
           }
           for (final c in chaptersOf(s.levels)) {
             if (!openBefore.contains(c.index) &&
                 chapterOpen(c, s.profile.profile.levelStars)) {
-              _toast('Chapter ${c.number} unlocked: ${c.title}');
+              _toast(
+                tr('Chapter {n} unlocked: {chapter}', {
+                  'n': c.number,
+                  'chapter': c.title,
+                }),
+              );
             }
           }
         }
@@ -581,10 +593,11 @@ class _GameScreenState extends State<GameScreen>
   }
 
   String _rewardText(ChapterReward r) => [
-    if (r.coins > 0) '+${r.coins} coins',
-    if (r.tokens > 0) '+${r.tokens} token${r.tokens == 1 ? '' : 's'}',
-    if (r.ball != null) '${ballSkinById(r.ball!).name} ball',
-    if (r.theme != null) '${ringThemeById(r.theme!).name} ring',
+    if (r.coins > 0) tr('+{n} coins', {'n': r.coins}),
+    if (r.tokens > 0) tr('+{n} tokens', {'n': r.tokens}),
+    if (r.ball != null) tr('{name} ball', {'name': ballSkinById(r.ball!).name}),
+    if (r.theme != null)
+      tr('{name} ring', {'name': ringThemeById(r.theme!).name}),
   ].join(', ');
 
   void _onRunFinished(RunSummary summary) {
@@ -598,13 +611,13 @@ class _GameScreenState extends State<GameScreen>
     });
     _starsGained = 0;
     for (final l in rewards.levelsGained) {
-      _toast('LEVEL UP! Player level ${l.level}');
+      _toast(tr('LEVEL UP! Player level {n}', {'n': l.level}));
     }
     for (final m in rewards.missions) {
-      _toast('Mission done: ${m.title}');
+      _toast(tr('Mission done: {title}', {'title': m.title}));
     }
     for (final a in rewards.achievements) {
-      _toast('Achievement: ${a.title}');
+      _toast(tr('Achievement: {title}', {'title': a.title}));
       s.gameServices.unlock(a.id);
     }
     if (rewards.levelsGained.isNotEmpty || rewards.achievements.isNotEmpty) {
@@ -804,13 +817,20 @@ class _GameScreenState extends State<GameScreen>
     final summary = engine.lastSummary;
     if (summary == null) return;
     final code = DuelCode.encode(engine.seed, summary.score);
-    final where = switch (summary.mode) {
-      RunMode.daily => ' in Daily Challenge #${dailyNumber(_today)}',
-      _ => '',
-    };
-    final text =
-        'I scored ${summary.score} in Hue Lock$where! '
-        'Think you can beat it? Open Hue Lock, tap DUEL and enter $code';
+    final text = summary.mode == RunMode.daily
+        ? tr(
+            'I scored {score} in Hue Lock Daily Challenge #{day}! Think you can beat it? Open Hue Lock, tap {duel} and enter {code}',
+            {
+              'score': summary.score,
+              'day': dailyNumber(_today),
+              'duel': tr('DUEL'),
+              'code': code,
+            },
+          )
+        : tr(
+            'I scored {score} in Hue Lock! Think you can beat it? Open Hue Lock, tap {duel} and enter {code}',
+            {'score': summary.score, 'duel': tr('DUEL'), 'code': code},
+          );
     final files = <XFile>[];
     try {
       final boundary =
@@ -863,11 +883,15 @@ class _GameScreenState extends State<GameScreen>
     if (rank == null || target == null) return null;
     final best = math.max(score, rank.score);
     if (best > target) return null;
-    final name = rank.rivalName ?? 'the next player';
+    final name = rank.rivalName ?? tr('the next player');
     return NextGoal(
-      '${target - score + 1} points to pass $name (#${rank.rank - 1})',
+      tr('{n} points to pass {name} (#{rank})', {
+        'n': target - score + 1,
+        'name': name,
+        'rank': rank.rank - 1,
+      }),
       (score / (target + 1)).clamp(0.0, 1.0),
-      detail: 'you: #${rank.rank} this week',
+      detail: tr('you: #{rank} this week', {'rank': rank.rank}),
     );
   }
 

@@ -25,6 +25,9 @@ class PlayerProfile {
   bool haptics = true;
   bool colorblind = false;
 
+  /// App language code ('el', 'de', ...); empty = follow the phone.
+  String language = '';
+
   /// Focus button on the left (for left thumbs).
   bool focusLeft = false;
   bool adsRemoved = false;
@@ -87,6 +90,7 @@ class PlayerProfile {
     'musicVolume': musicVolume,
     'haptics': haptics,
     'colorblind': colorblind,
+    'language': language,
     'focusLeft': focusLeft,
     'adsRemoved': adsRemoved,
     'seenIntros': seenIntros.toList(),
@@ -181,6 +185,7 @@ class PlayerProfile {
       ..musicVolume = (j['musicVolume'] as num?)?.toDouble() ?? 0.6
       ..haptics = get('haptics', true)
       ..colorblind = get('colorblind', false)
+      ..language = get('language', '')
       ..focusLeft = get('focusLeft', false)
       ..adsRemoved = get('adsRemoved', false)
       ..seenIntros = {

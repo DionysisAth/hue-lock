@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../app.dart';
 import '../config/links.dart';
+import '../l10n/l10n.dart';
 import '../render/ring_themes.dart';
 import '../services/purchase_service.dart';
 
@@ -25,21 +26,41 @@ class SettingsScreen extends StatelessWidget {
           appBar: AppBar(
             backgroundColor: theme.bgTop,
             foregroundColor: theme.text,
-            title: const Text(
-              'SETTINGS',
+            title: Text(
+              tr('SETTINGS'),
               style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 3),
             ),
           ),
           body: ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
+              ListTile(
+                leading: Icon(Icons.language_rounded, color: theme.text),
+                title: Text(tr('Language'), style: text),
+                subtitle: Text(
+                  p.language.isEmpty
+                      ? '${tr('Phone language')} · ${L10n.languages[L10n.lang]}'
+                      : L10n.languages[L10n.lang]!,
+                  style: sub,
+                ),
+                onTap: () async {
+                  final code = await showLanguagePicker(
+                    context,
+                    current: p.language,
+                    theme: theme,
+                  );
+                  if (code != null) {
+                    s.profile.update((p) => p.language = code);
+                  }
+                },
+              ),
               SwitchListTile(
-                title: Text('Sound', style: text),
+                title: Text(tr('Sound'), style: text),
                 value: p.sound,
                 onChanged: (v) => s.profile.update((p) => p.sound = v),
               ),
               ListTile(
-                title: Text('Sound volume', style: text),
+                title: Text(tr('Sound volume'), style: text),
                 subtitle: Slider(
                   value: p.volume,
                   onChanged: p.sound
@@ -48,13 +69,16 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               SwitchListTile(
-                title: Text('Music', style: text),
-                subtitle: Text('Builds up as your run heats up', style: sub),
+                title: Text(tr('Music'), style: text),
+                subtitle: Text(
+                  tr('Builds up as your run heats up'),
+                  style: sub,
+                ),
                 value: p.music,
                 onChanged: (v) => s.profile.update((p) => p.music = v),
               ),
               ListTile(
-                title: Text('Music volume', style: text),
+                title: Text(tr('Music volume'), style: text),
                 subtitle: Slider(
                   value: p.musicVolume,
                   onChanged: p.music
@@ -63,15 +87,15 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               SwitchListTile(
-                title: Text('Haptics', style: text),
-                subtitle: Text('Vibrate on hits', style: sub),
+                title: Text(tr('Haptics'), style: text),
+                subtitle: Text(tr('Vibrate on hits'), style: sub),
                 value: p.haptics,
                 onChanged: (v) => s.profile.update((p) => p.haptics = v),
               ),
               SwitchListTile(
-                title: Text('Daily reminder', style: text),
+                title: Text(tr('Daily reminder'), style: text),
                 subtitle: Text(
-                  'A notification when a new Daily Challenge is live',
+                  tr('A notification when a new Daily Challenge is live'),
                   style: sub,
                 ),
                 value: p.dailyReminder,
@@ -90,32 +114,42 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   title: Text(
                     s.gameServices.signedIn
-                        ? 'Signed in as ${s.gameServices.playerName ?? 'player'}'
-                        : 'Sign in to save progress online',
+                        ? tr('Signed in as {name}', {
+                            'name': s.gameServices.playerName ?? tr('player'),
+                          })
+                        : tr('Sign in to save progress online'),
                     style: text,
                   ),
                   subtitle: Text(
                     s.gameServices.lastCloudSave != null
-                        ? 'Progress saved to the cloud at '
-                              '${TimeOfDay.fromDateTime(s.gameServices.lastCloudSave!).format(context)}. '
-                              'Tap to sync now.'
-                        : 'Leaderboards, achievements and cloud save',
+                        ? tr(
+                            'Progress saved to the cloud at {time}. Tap to sync now.',
+                            {
+                              'time': TimeOfDay.fromDateTime(
+                                s.gameServices.lastCloudSave!,
+                              ).format(context),
+                            },
+                          )
+                        : tr('Leaderboards, achievements and cloud save'),
                     style: sub,
                   ),
                   onTap: s.syncCloud,
                 ),
               SwitchListTile(
-                title: Text('Colorblind mode', style: text),
+                title: Text(tr('Colorblind mode'), style: text),
                 subtitle: Text(
-                  'Colorblind-safe colors plus a symbol on every color',
+                  tr('Colorblind-safe colors plus a symbol on every color'),
                   style: sub,
                 ),
                 value: p.colorblind,
                 onChanged: (v) => s.profile.update((p) => p.colorblind = v),
               ),
               SwitchListTile(
-                title: Text('Focus button on the left', style: text),
-                subtitle: Text('For playing with your left thumb', style: sub),
+                title: Text(tr('Focus button on the left'), style: text),
+                subtitle: Text(
+                  tr('For playing with your left thumb'),
+                  style: sub,
+                ),
                 value: p.focusLeft,
                 onChanged: (v) => s.profile.update((p) => p.focusLeft = v),
               ),
@@ -123,13 +157,18 @@ class SettingsScreen extends StatelessWidget {
               ListTile(
                 leading: Icon(Icons.block_rounded, color: theme.text),
                 title: Text(
-                  p.adsRemoved ? 'Ads removed - thank you!' : 'Remove ads',
+                  p.adsRemoved
+                      ? tr('Ads removed - thank you!')
+                      : tr('Remove ads'),
                   style: text,
                 ),
                 subtitle: Text(
                   p.adsRemoved
-                      ? 'Optional reward videos stay available'
-                      : 'No more interstitial ads${price != null ? ' ($price)' : ''}',
+                      ? tr('Optional reward videos stay available')
+                      : [
+                          tr('No more interstitial ads'),
+                          if (price != null) '($price)',
+                        ].join(' '),
                   style: sub,
                 ),
                 enabled: !p.adsRemoved && s.purchases.storeAvailable,
@@ -137,7 +176,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               ListTile(
                 leading: Icon(Icons.restore_rounded, color: theme.text),
-                title: Text('Restore purchases', style: text),
+                title: Text(tr('Restore purchases'), style: text),
                 enabled: s.purchases.storeAvailable,
                 onTap: () => s.purchases.restore(),
               ),
@@ -152,12 +191,12 @@ class SettingsScreen extends StatelessWidget {
               if (s.ads.privacyOptionsRequired)
                 ListTile(
                   leading: Icon(Icons.privacy_tip_rounded, color: theme.text),
-                  title: Text('Privacy options', style: text),
+                  title: Text(tr('Privacy options'), style: text),
                   onTap: () => s.ads.showPrivacyOptions(),
                 ),
               ListTile(
                 leading: Icon(Icons.policy_rounded, color: theme.text),
-                title: Text('Privacy policy', style: text),
+                title: Text(tr('Privacy policy'), style: text),
                 trailing: Icon(Icons.open_in_new_rounded, color: theme.text),
                 onTap: () => launchUrl(
                   Uri.parse(Links.privacyPolicy),
@@ -166,7 +205,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               ListTile(
                 leading: Icon(Icons.mail_outline_rounded, color: theme.text),
-                title: Text('Contact us', style: text),
+                title: Text(tr('Contact us'), style: text),
                 subtitle: Text(
                   Links.contactEmail,
                   style: TextStyle(color: theme.subtleText),
@@ -181,11 +220,11 @@ class SettingsScreen extends StatelessWidget {
               ),
               const Divider(),
               ListTile(
-                title: Text('Best score', style: text),
+                title: Text(tr('Best score'), style: text),
                 trailing: Text('${p.bestScore}', style: text),
               ),
               ListTile(
-                title: Text('Runs played', style: text),
+                title: Text(tr('Runs played'), style: text),
                 trailing: Text('${p.totalRuns}', style: text),
               ),
             ],
@@ -194,4 +233,36 @@ class SettingsScreen extends StatelessWidget {
       },
     );
   }
+}
+
+/// Lets the player pick the app language; '' = the phone's language.
+/// Returns the chosen code, or null if dismissed.
+Future<String?> showLanguagePicker(
+  BuildContext context, {
+  required String current,
+  required RingTheme theme,
+}) {
+  return showDialog<String>(
+    context: context,
+    builder: (context) => SimpleDialog(
+      backgroundColor: theme.bgTop,
+      title: Text(
+        tr('Language'),
+        style: TextStyle(color: theme.text, fontWeight: FontWeight.w900),
+      ),
+      children: [
+        for (final (code, name) in [
+          ('', tr('Phone language')),
+          ...L10n.languages.entries.map((e) => (e.key, e.value)),
+        ])
+          ListTile(
+            title: Text(name, style: TextStyle(color: theme.text)),
+            trailing: code == current
+                ? Icon(Icons.check_rounded, color: theme.text)
+                : null,
+            onTap: () => Navigator.of(context).pop(code),
+          ),
+      ],
+    ),
+  );
 }

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
+import '../l10n/l10n.dart';
+
 /// Store products. Create these ids in App Store Connect and Google Play
 /// Console.
 class Products {
@@ -100,7 +102,7 @@ class StorePurchaseService extends PurchaseService {
           _onEntitled(p.productID);
           _error = null;
         case PurchaseStatus.error:
-          _error = p.error?.message ?? 'Purchase failed';
+          _error = p.error?.message ?? tr('Purchase failed');
         case PurchaseStatus.pending:
         case PurchaseStatus.canceled:
           break;
@@ -114,7 +116,7 @@ class StorePurchaseService extends PurchaseService {
   Future<void> buy(String productId) async {
     final product = _products[productId];
     if (product == null) {
-      _error = 'Store not available right now';
+      _error = tr('Store not available right now');
       notifyListeners();
       return;
     }

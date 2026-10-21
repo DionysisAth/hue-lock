@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app.dart';
 import '../game/game_engine.dart';
 import '../game/star_goals.dart';
+import '../l10n/l10n.dart';
 import '../meta/levels.dart';
 import '../meta/progression.dart';
 import '../render/game_painter.dart';
@@ -92,7 +93,7 @@ class GameOverOverlay extends StatelessWidget {
     if (mode == RunMode.level && summary != null) {
       if (summary.completed) {
         return [
-          Text('LEVEL COMPLETE', style: _big(HuePalette.standard[3], 24)),
+          Text(tr('LEVEL COMPLETE'), style: _big(HuePalette.standard[3], 24)),
           const SizedBox(height: 6),
           _Stars(
             mask: levelGoalsBefore | summary.goalsMet,
@@ -101,18 +102,24 @@ class GameOverOverlay extends StatelessWidget {
         ];
       }
       return [
-        Text('TRY AGAIN', style: _big(HuePalette.standard[0], 24)),
+        Text(tr('TRY AGAIN'), style: _big(HuePalette.standard[0], 24)),
         Text(
-          '${summary.level} / ${engine.targetRounds ?? 0} cleared',
+          tr('{n} / {target} cleared', {
+            'n': summary.level,
+            'target': engine.targetRounds ?? 0,
+          }),
           style: hudLabel(theme, size: 13),
         ),
       ];
     }
     if (mode == RunMode.rush && summary != null) {
       return [
-        Text('TIME UP', style: _big(HuePalette.standard[2], 24)),
+        Text(tr('TIME UP'), style: _big(HuePalette.standard[2], 24)),
         Text(
-          '${summary.hits} hits · ${summary.perfects} Perfects',
+          tr('{hits} hits · {perfects} Perfects', {
+            'hits': summary.hits,
+            'perfects': summary.perfects,
+          }),
           style: hudLabel(theme, size: 13),
         ),
       ];
@@ -122,36 +129,40 @@ class GameOverOverlay extends StatelessWidget {
       final won = summary.score > target;
       return [
         Text(
-          won ? 'YOU WIN!' : 'YOU LOSE',
+          won ? tr('YOU WIN!') : tr('YOU LOSE'),
           style: _big(won ? HuePalette.standard[3] : HuePalette.standard[0]),
         ),
-        Text('${summary.score} vs $target', style: hudLabel(theme, size: 13)),
+        Text(
+          tr('{score} vs {target}', {'score': summary.score, 'target': target}),
+          style: hudLabel(theme, size: 13),
+        ),
       ];
     }
     if (miss != null && miss.letGo) {
       return [
-        Text('LET GO TOO SOON', style: _big(HuePalette.standard[2], 22)),
-        Text('hold until the white mark', style: hudLabel(theme, size: 13)),
+        Text(tr('LET GO TOO SOON'), style: _big(HuePalette.standard[2], 22)),
+        Text(tr('hold until the white mark'), style: hudLabel(theme, size: 13)),
       ];
     }
     if (miss != null && miss.nearMiss) {
       return [
-        Text('SO CLOSE!', style: _big(HuePalette.standard[0])),
+        Text(tr('SO CLOSE!'), style: _big(HuePalette.standard[0])),
         Text(
-          '${(miss.missBySeconds * 1000).round()} ms '
-          '${miss.early ? 'early' : 'late'}',
+          miss.early
+              ? tr('{n} ms early', {'n': (miss.missBySeconds * 1000).round()})
+              : tr('{n} ms late', {'n': (miss.missBySeconds * 1000).round()}),
           style: hudLabel(theme, size: 13),
         ),
       ];
     }
     if (miss != null && miss.timeout) {
       return [
-        Text('TOO SLOW', style: _big(HuePalette.standard[2], 24)),
-        Text('the fuse ran out', style: hudLabel(theme, size: 13)),
+        Text(tr('TOO SLOW'), style: _big(HuePalette.standard[2], 24)),
+        Text(tr('the fuse ran out'), style: hudLabel(theme, size: 13)),
       ];
     }
     if (miss?.wrongZone != null) {
-      return [Text('WRONG COLOR', style: hudLabel(theme, size: 15))];
+      return [Text(tr('WRONG COLOR'), style: hudLabel(theme, size: 15))];
     }
     return const [];
   }
@@ -192,12 +203,17 @@ class GameOverOverlay extends StatelessWidget {
                       children: [
                         if (mode == RunMode.daily || mode == RunMode.rush)
                           Text(
-                            mode == RunMode.rush ? 'RUSH' : 'DAILY CHALLENGE',
+                            mode == RunMode.rush
+                                ? tr('RUSH')
+                                : tr('DAILY CHALLENGE'),
                             style: hudLabel(theme, size: 12),
                           ),
                         if (mode == RunMode.level && level != null)
                           Text(
-                            'LEVEL ${level!.number} · ${level!.title.toUpperCase()}',
+                            tr('LEVEL {n} · {title}', {
+                              'n': level!.number,
+                              'title': L10n.upper(level!.title),
+                            }),
                             style: hudLabel(theme, size: 12),
                           ),
                         Text(
@@ -214,9 +230,11 @@ class GameOverOverlay extends StatelessWidget {
                           Text(
                             isNewBest
                                 ? (mode == RunMode.daily
-                                      ? 'BEST TODAY!'
-                                      : 'NEW BEST!')
-                                : '${mode == RunMode.daily ? 'TODAY' : 'BEST'} $best',
+                                      ? tr('BEST TODAY!')
+                                      : tr('NEW BEST!'))
+                                : mode == RunMode.daily
+                                ? tr('TODAY {n}', {'n': best})
+                                : tr('BEST {n}', {'n': best}),
                             style: isNewBest
                                 ? _big(HuePalette.standard[2], 16)
                                 : hudLabel(theme),
@@ -226,7 +244,10 @@ class GameOverOverlay extends StatelessWidget {
                         if (summary != null && mode == RunMode.endless) ...[
                           const SizedBox(height: 6),
                           Text(
-                            'STAGE ${summary.world + 1} · ${worldName(summary.world)}',
+                            tr('STAGE {n} · {name}', {
+                              'n': summary.world + 1,
+                              'name': worldName(summary.world),
+                            }),
                             style: hudLabel(theme, size: 12),
                           ),
                         ],
@@ -263,7 +284,7 @@ class GameOverOverlay extends StatelessWidget {
                             const SizedBox(width: 10),
                             IgnorePointer(
                               child: Text(
-                                '+$xp XP',
+                                tr('+{n} XP', {'n': xp}),
                                 style: TextStyle(
                                   color: HuePalette.standard[3],
                                   fontWeight: FontWeight.w900,
@@ -308,7 +329,7 @@ class GameOverOverlay extends StatelessWidget {
                           alignment: WrapAlignment.center,
                           children: [
                             PillButton(
-                              label: 'CONTINUE',
+                              label: tr('CONTINUE'),
                               icon: Icons.play_circle_fill_rounded,
                               theme: theme,
                               color: HuePalette.standard[3],
@@ -316,7 +337,7 @@ class GameOverOverlay extends StatelessWidget {
                             ),
                             if (tokens > 0)
                               PillButton(
-                                label: 'TOKEN ($tokens)',
+                                label: tr('TOKEN ({n})', {'n': tokens}),
                                 icon: Icons.confirmation_number_rounded,
                                 theme: theme,
                                 color: HuePalette.standard[1],
@@ -341,7 +362,7 @@ class GameOverOverlay extends StatelessWidget {
                           children: [
                             if (onLevels != null)
                               PillButton(
-                                label: 'LEVELS',
+                                label: tr('LEVELS'),
                                 icon: Icons.grid_view_rounded,
                                 theme: theme,
                                 filled: false,
@@ -350,7 +371,7 @@ class GameOverOverlay extends StatelessWidget {
                             if (onNextLevel != null) ...[
                               const SizedBox(width: 10),
                               PillButton(
-                                label: 'NEXT',
+                                label: tr('NEXT'),
                                 icon: Icons.arrow_forward_rounded,
                                 theme: theme,
                                 color: HuePalette.standard[3],
@@ -364,15 +385,17 @@ class GameOverOverlay extends StatelessWidget {
                         const SizedBox(height: 12),
                         Text(
                           dailyAttemptsLeft > 0
-                              ? '$dailyAttemptsLeft attempt${dailyAttemptsLeft == 1 ? '' : 's'} left today'
-                              : 'No attempts left today',
+                              ? tr('{n} attempts left today', {
+                                  'n': dailyAttemptsLeft,
+                                })
+                              : tr('No attempts left today'),
                           style: hudLabel(theme, size: 13),
                         ),
                         if (dailyAttemptsLeft <= 0 &&
                             onExtraAttempt != null) ...[
                           const SizedBox(height: 8),
                           PillButton(
-                            label: 'ONE MORE TRY',
+                            label: tr('ONE MORE TRY'),
                             icon: Icons.play_circle_fill_rounded,
                             theme: theme,
                             color: HuePalette.standard[2],
@@ -387,7 +410,7 @@ class GameOverOverlay extends StatelessWidget {
                           children: [
                             if (onShare != null)
                               PillButton(
-                                label: 'CHALLENGE A FRIEND',
+                                label: tr('CHALLENGE A FRIEND'),
                                 icon: Icons.share_rounded,
                                 theme: theme,
                                 filled: false,
@@ -396,7 +419,7 @@ class GameOverOverlay extends StatelessWidget {
                             if (onLeaderboard != null) ...[
                               const SizedBox(width: 8),
                               IconButton(
-                                tooltip: 'Leaderboard',
+                                tooltip: tr('Leaderboard'),
                                 onPressed: onLeaderboard,
                                 icon: Icon(
                                   Icons.leaderboard_rounded,
@@ -412,7 +435,7 @@ class GameOverOverlay extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            tooltip: 'Home',
+                            tooltip: tr('Home'),
                             onPressed: onHome,
                             icon: Icon(
                               Icons.home_rounded,
@@ -426,8 +449,8 @@ class GameOverOverlay extends StatelessWidget {
                               enabled: canRetry,
                               child: Text(
                                 canRetry
-                                    ? 'TAP TO RETRY'
-                                    : 'COME BACK TOMORROW',
+                                    ? tr('TAP TO RETRY')
+                                    : tr('COME BACK TOMORROW'),
                                 style: TextStyle(
                                   color: theme.text,
                                   fontSize: canRetry ? 18 : 15,
@@ -474,8 +497,11 @@ class GameOverOverlay extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 r == chapterStarBonus
-                    ? 'ALL ${c.maxStars} STARS IN ${c.title.toUpperCase()}'
-                    : 'CHAPTER ${c.number} COMPLETE',
+                    ? tr('ALL {n} STARS IN {chapter}', {
+                        'n': c.maxStars,
+                        'chapter': L10n.upper(c.title),
+                      })
+                    : tr('CHAPTER {n} COMPLETE', {'n': c.number}),
                 style: _big(coinColor, 15),
               ),
             ),
@@ -486,9 +512,10 @@ class GameOverOverlay extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                'EARN $nextLocked MORE '
-                '${nextLocked == 1 ? 'STAR' : 'STARS'} TO OPEN CHAPTER '
-                '${l.chapter + 2}',
+                tr('EARN {n} MORE STARS TO OPEN CHAPTER {chapter}', {
+                  'n': nextLocked,
+                  'chapter': l.chapter + 2,
+                }),
                 style: hudLabel(theme, size: 12).copyWith(color: coinColor),
               ),
             ),
@@ -603,7 +630,10 @@ class _GoalCheck extends StatelessWidget {
               fontSize: 14,
             ),
           ),
-          if (fresh) ...[const SizedBox(width: 6), Text('NEW', style: _newTag)],
+          if (fresh) ...[
+            const SizedBox(width: 6),
+            Text(tr('NEW'), style: _newTag),
+          ],
         ],
       ),
     );

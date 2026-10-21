@@ -1,11 +1,13 @@
 import 'dart:ui';
 
+import '../l10n/l10n.dart';
+
 /// A ring theme. Every theme must keep zones clearly readable: zone colors
 /// come from the palette, never from the theme.
 class RingTheme {
   const RingTheme({
     required this.id,
-    required this.name,
+    required String name,
     required this.price,
     required this.bgTop,
     required this.bgBottom,
@@ -18,10 +20,11 @@ class RingTheme {
     this.zoneOutline,
     this.outerHalo,
     this.dark = true,
-  });
+  }) : nameEn = name;
 
   final String id;
-  final String name;
+  final String nameEn;
+  String get name => tr(nameEn);
   final int price;
   final Color bgTop;
   final Color bgBottom;

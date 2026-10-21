@@ -76,6 +76,8 @@ void main() {
     await tester.pump();
     await tester.tap(find.byTooltip('Settings'));
     await _settle(tester);
+    await tester.ensureVisible(find.text('Colorblind mode'));
+    await tester.pump();
     await tester.tap(find.text('Colorblind mode'));
     await tester.pump();
     expect(s.profile.profile.colorblind, isTrue);

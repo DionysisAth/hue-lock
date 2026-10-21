@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../config/game_config.dart';
 import '../core/seeded_random.dart';
 import '../game/game_engine.dart';
+import '../l10n/l10n.dart';
 import '../render/ball_skins.dart';
 import '../render/ring_themes.dart';
 import '../services/profile_store.dart';
@@ -151,7 +152,7 @@ class Mission {
   bool claimed;
 
   bool get done => progress >= target;
-  String get title => type.text.replaceAll('{n}', '$target');
+  String get title => tr(type.text, {'n': target});
   int get xp => 20 + coins ~/ 4;
 
   Map<String, dynamic> toJson() => {
@@ -316,11 +317,15 @@ DailyReward? claimDailyReward(PlayerProfile p, DateTime nowLocal) {
 // ---------------------------------------------------------------------------
 
 class AchievementDef {
-  const AchievementDef(this.id, this.title, this.description, this.test);
+  const AchievementDef(this.id, this.titleEn, this.descriptionEn, this.test);
 
   final String id;
-  final String title;
-  final String description;
+
+  /// English name and description (as on Play Games / Game Center).
+  final String titleEn;
+  final String descriptionEn;
+  String get title => tr(titleEn);
+  String get description => tr(descriptionEn);
   final bool Function(PlayerProfile p) test;
 }
 
@@ -550,9 +555,7 @@ List<NextGoal> nextGoals(
       s.score <= best) {
     out.add(
       NextGoal(
-        best - s.score + 1 == 1
-            ? '1 more point for a new best'
-            : '${best - s.score + 1} more points for a new best',
+        tr('{n} more points for a new best', {'n': best - s.score + 1}),
         s.score / (best + 1),
         detail: '${s.score} / ${best + 1}',
       ),
@@ -566,8 +569,11 @@ List<NextGoal> nextGoals(
     final left = stageEvery - into;
     out.add(
       NextGoal(
-        '$left ${left == 1 ? 'round' : 'rounds'} to Stage ${s.world + 2} · '
-        '${worldName(s.world + 1)}',
+        tr('{n} rounds to Stage {stage} · {name}', {
+          'n': left,
+          'stage': s.world + 2,
+          'name': worldName(s.world + 1),
+        }),
         into / stageEvery,
       ),
     );
@@ -576,9 +582,11 @@ List<NextGoal> nextGoals(
     final into = s.level % bossEvery;
     out.add(
       into == 0
-          ? const NextGoal('Beat the boss to pick a perk', 0.97)
+          ? NextGoal(tr('Beat the boss to pick a perk'), 0.97)
           : NextGoal(
-              '${bossEvery - into} rounds to the next boss and a perk',
+              tr('{n} rounds to the next boss and a perk', {
+                'n': bossEvery - into,
+              }),
               into / bossEvery,
             ),
     );
@@ -593,7 +601,7 @@ List<NextGoal> nextGoals(
     if (progress >= m.target) continue;
     out.add(
       NextGoal(
-        'Mission: ${m.title}',
+        tr('Mission: {title}', {'title': m.title}),
         progress / m.target,
         detail: '$progress / ${m.target}',
       ),
@@ -605,15 +613,15 @@ List<NextGoal> nextGoals(
   final (into, size) = levelProgress(xp);
   final reward = rewardForLevel(level + 1);
   final unlock = reward.ball != null
-      ? 'the ${ballSkinById(reward.ball!).name} ball'
+      ? tr('the {name} ball', {'name': ballSkinById(reward.ball!).name})
       : reward.theme != null
-      ? 'the ${ringThemeById(reward.theme!).name} ring'
-      : '${reward.coins} coins';
+      ? tr('the {name} ring', {'name': ringThemeById(reward.theme!).name})
+      : tr('{n} coins', {'n': reward.coins});
   out.add(
     NextGoal(
-      'Player level ${level + 1}: $unlock',
+      tr('Player level {n}: {unlock}', {'n': level + 1, 'unlock': unlock}),
       into / size,
-      detail: '${size - into} XP to go',
+      detail: tr('{n} XP to go', {'n': size - into}),
     ),
   );
 

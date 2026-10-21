@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../app.dart';
+import '../l10n/l10n.dart';
 import '../render/ball_skins.dart';
 import '../render/palette.dart';
 import '../render/ring_themes.dart';
@@ -30,8 +31,8 @@ class ShopScreen extends StatelessWidget {
             appBar: AppBar(
               backgroundColor: theme.bgTop,
               foregroundColor: theme.text,
-              title: const Text(
-                'SHOP',
+              title: Text(
+                tr('SHOP'),
                 style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 3),
               ),
               actions: [
@@ -44,10 +45,10 @@ class ShopScreen extends StatelessWidget {
                 labelColor: theme.text,
                 unselectedLabelColor: theme.subtleText,
                 indicatorColor: theme.text,
-                tabs: const [
-                  Tab(text: 'BALLS'),
-                  Tab(text: 'RINGS'),
-                  Tab(text: 'PACKS'),
+                tabs: [
+                  Tab(text: tr('BALLS')),
+                  Tab(text: tr('RINGS')),
+                  Tab(text: tr('PACKS')),
                 ],
               ),
             ),
@@ -160,11 +161,17 @@ class ShopScreen extends StatelessWidget {
                     SnackBar(
                       content: Text(
                         item.price == levelsReward
-                            ? 'Clear a chapter on the Levels map to unlock it.'
+                            ? tr(
+                                'Clear a chapter on the Levels map to unlock it.',
+                              )
                             : exclusive
-                            ? 'Exclusive to the Starter Pack (see PACKS).'
-                            : 'You need ${item.price - coins} more coins. '
-                                  'Play runs to earn them!',
+                            ? tr('Exclusive to the Starter Pack (see {tab}).', {
+                                'tab': tr('PACKS'),
+                              })
+                            : tr(
+                                'You need {n} more coins. Play runs to earn them!',
+                                {'n': item.price - coins},
+                              ),
                       ),
                     ),
                   );
@@ -188,13 +195,13 @@ class ShopScreen extends StatelessWidget {
                   SizedBox(
                     height: 22,
                     child: item.equipped
-                        ? Text('EQUIPPED', style: _tag(theme))
+                        ? _tagText(tr('EQUIPPED'), theme)
                         : item.owned
-                        ? Text('OWNED', style: _tag(theme))
+                        ? _tagText(tr('OWNED'), theme)
                         : item.price == levelsReward
-                        ? Text('LEVELS REWARD', style: _tag(theme))
+                        ? _tagText(tr('LEVELS REWARD'), theme)
                         : exclusive
-                        ? Text('STARTER PACK', style: _tag(theme))
+                        ? _tagText(tr('STARTER PACK'), theme)
                         : Opacity(
                             opacity: affordable ? 1 : 0.5,
                             child: CoinCount(
@@ -213,6 +220,11 @@ class ShopScreen extends StatelessWidget {
     );
   }
 
+  Widget _tagText(String text, RingTheme theme) => FittedBox(
+    fit: BoxFit.scaleDown,
+    child: Text(text, maxLines: 1, style: _tag(theme)),
+  );
+
   TextStyle _tag(RingTheme theme) => TextStyle(
     color: theme.subtleText,
     fontWeight: FontWeight.w800,
@@ -228,22 +240,22 @@ class ShopScreen extends StatelessWidget {
     return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text('Buy ${item.name}?'),
+            title: Text(tr('Buy {name}?', {'name': item.name})),
             content: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Price: '),
+                Text('${tr('Price:')} '),
                 CoinCount(coins: item.price, color: Colors.white, size: 16),
               ],
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
+                child: Text(tr('Cancel')),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Buy'),
+                child: Text(tr('Buy')),
               ),
             ],
           ),
@@ -453,14 +465,14 @@ class _PacksTab extends StatelessWidget {
                 const SizedBox(width: 10),
                 owned
                     ? Text(
-                        'OWNED',
+                        tr('OWNED'),
                         style: TextStyle(
                           color: theme.subtleText,
                           fontWeight: FontWeight.w800,
                         ),
                       )
                     : PillButton(
-                        label: price ?? 'BUY',
+                        label: price ?? tr('BUY'),
                         theme: theme,
                         color: color,
                         onPressed: store.storeAvailable && price != null
@@ -476,27 +488,29 @@ class _PacksTab extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           children: [
             pack(
-              title: 'STARTER PACK',
-              body:
-                  'No more ads + 1000 coins + the exclusive Crown ball + '
-                  '5 continue tokens. One time only.',
+              title: tr('STARTER PACK'),
+              body: tr(
+                'No more ads + 1000 coins + the exclusive Crown ball + 5 continue tokens. One time only.',
+              ),
               icon: Icons.workspace_premium_rounded,
               color: coinColor,
               productId: Products.starterPack,
               owned: p.starterPack,
             ),
             pack(
-              title: '5 CONTINUE TOKENS',
-              body:
-                  'Continue a run without watching an ad. You have '
-                  '${p.tokens}.',
+              title: tr('5 CONTINUE TOKENS'),
+              body: tr('Continue a run without watching an ad. You have {n}.', {
+                'n': p.tokens,
+              }),
               icon: Icons.confirmation_number_rounded,
               color: HuePalette.standard[3],
               productId: Products.tokens5,
             ),
             pack(
-              title: 'REMOVE ADS',
-              body: 'No more interstitial ads. Optional reward videos stay.',
+              title: tr('REMOVE ADS'),
+              body: tr(
+                'No more interstitial ads. Optional reward videos stay.',
+              ),
               icon: Icons.block_rounded,
               color: HuePalette.standard[1],
               productId: Products.removeAds,
@@ -504,7 +518,7 @@ class _PacksTab extends StatelessWidget {
             ),
             if (!store.storeAvailable)
               Text(
-                'The store is not available right now.',
+                tr('The store is not available right now.'),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: theme.subtleText),
               ),

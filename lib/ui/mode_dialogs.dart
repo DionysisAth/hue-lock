@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/l10n.dart';
 import '../meta/progression.dart';
 import '../render/palette.dart';
 import '../render/ring_themes.dart';
@@ -23,7 +24,7 @@ Future<DailyChoice?> showDailyDialog(
     builder: (context) => AlertDialog(
       backgroundColor: theme.bgTop,
       title: Text(
-        'DAILY CHALLENGE #${dailyNumber(day)}',
+        tr('DAILY CHALLENGE #{n}', {'n': dailyNumber(day)}),
         style: TextStyle(color: theme.text, fontWeight: FontWeight.w900),
       ),
       content: Column(
@@ -31,18 +32,18 @@ Future<DailyChoice?> showDailyDialog(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Everyone plays the same run today. No continues.',
+            tr('Everyone plays the same run today. No continues.'),
             style: TextStyle(color: theme.text, height: 1.35),
           ),
           const SizedBox(height: 12),
           Text(
-            'Today\'s best: $best',
+            tr("Today's best: {n}", {'n': best}),
             style: TextStyle(color: theme.text, fontWeight: FontWeight.w800),
           ),
           Text(
             attemptsLeft > 0
-                ? '$attemptsLeft attempt${attemptsLeft == 1 ? '' : 's'} left'
-                : 'No attempts left today',
+                ? tr('{n} attempts left', {'n': attemptsLeft})
+                : tr('No attempts left today'),
             style: TextStyle(color: theme.subtleText),
           ),
         ],
@@ -50,7 +51,7 @@ Future<DailyChoice?> showDailyDialog(
       actions: [
         if (leaderboards)
           IconButton(
-            tooltip: 'Leaderboard',
+            tooltip: tr('Leaderboard'),
             onPressed: () => Navigator.pop(context, DailyChoice.leaderboard),
             icon: const Icon(Icons.leaderboard_rounded),
           ),
@@ -60,12 +61,12 @@ Future<DailyChoice?> showDailyDialog(
                 ? () => Navigator.pop(context, DailyChoice.watchAd)
                 : null,
             icon: const Icon(Icons.play_circle_fill_rounded),
-            label: const Text('ONE MORE TRY'),
+            label: Text(tr('ONE MORE TRY')),
           )
         else
           FilledButton(
             onPressed: () => Navigator.pop(context, DailyChoice.play),
-            child: const Text('PLAY'),
+            child: Text(tr('PLAY')),
           ),
       ],
     ),
@@ -86,7 +87,7 @@ Future<(int, int)?> showDuelDialog(
         void submit() {
           final decoded = DuelCode.decode(controller.text);
           if (decoded == null) {
-            setState(() => error = 'That code doesn\'t look right');
+            setState(() => error = tr("That code doesn't look right"));
             return;
           }
           Navigator.pop(context, decoded);
@@ -95,7 +96,7 @@ Future<(int, int)?> showDuelDialog(
         return AlertDialog(
           backgroundColor: theme.bgTop,
           title: Text(
-            'FRIEND DUEL',
+            tr('FRIEND DUEL'),
             style: TextStyle(color: theme.text, fontWeight: FontWeight.w900),
           ),
           content: Column(
@@ -103,9 +104,10 @@ Future<(int, int)?> showDuelDialog(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Enter the code a friend sent you. You play exactly their '
-                'run and have to beat their score.\n\nTo challenge someone, '
-                'finish a run and tap CHALLENGE A FRIEND.',
+                tr(
+                  'Enter the code a friend sent you. You play exactly their run and have to beat their score.\n\nTo challenge someone, finish a run and tap {button}.',
+                  {'button': tr('CHALLENGE A FRIEND')},
+                ),
                 style: TextStyle(color: theme.text, height: 1.35),
               ),
               const SizedBox(height: 12),
@@ -137,9 +139,9 @@ Future<(int, int)?> showDuelDialog(
                 final match = RegExp(r'HL-?[0-9A-Za-z]{12}').firstMatch(text);
                 if (match != null) controller.text = match.group(0)!;
               },
-              child: const Text('Paste'),
+              child: Text(tr('Paste')),
             ),
-            FilledButton(onPressed: submit, child: const Text('PLAY')),
+            FilledButton(onPressed: submit, child: Text(tr('PLAY'))),
           ],
         );
       },
@@ -158,7 +160,7 @@ Future<void> showDailyRewardDialog(
     builder: (context) => AlertDialog(
       backgroundColor: theme.bgTop,
       title: Text(
-        'DAILY REWARD',
+        tr('DAILY REWARD'),
         style: TextStyle(color: theme.text, fontWeight: FontWeight.w900),
       ),
       content: Column(
@@ -191,7 +193,7 @@ Future<void> showDailyRewardDialog(
           ),
           const SizedBox(height: 16),
           Text(
-            'Day ${reward.day} streak!',
+            tr('Day {n} streak!', {'n': reward.day}),
             style: TextStyle(color: theme.text, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
@@ -218,7 +220,7 @@ Future<void> showDailyRewardDialog(
           ),
           const SizedBox(height: 8),
           Text(
-            'Come back tomorrow to keep the streak.',
+            tr('Come back tomorrow to keep the streak.'),
             style: TextStyle(color: theme.subtleText),
           ),
         ],
@@ -226,7 +228,7 @@ Future<void> showDailyRewardDialog(
       actions: [
         FilledButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('COLLECT'),
+          child: Text(tr('COLLECT')),
         ),
       ],
     ),

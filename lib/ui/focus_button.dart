@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../game/game_engine.dart';
+import '../l10n/l10n.dart';
 import '../render/ring_themes.dart';
 
 const focusColor = Color(0xFF7FE7FF);
@@ -33,7 +34,7 @@ class FocusButton extends StatelessWidget {
       onPointerDown: (_) => engine.toggleFocus(),
       child: Semantics(
         button: true,
-        label: 'Focus: slow time',
+        label: tr('Focus: slow time'),
         child: RepaintBoundary(
           child: CustomPaint(
             size: const Size.square(size),

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../game/game_engine.dart';
 import '../game/round.dart';
 import '../game/star_goals.dart';
+import '../l10n/l10n.dart';
 import '../meta/levels.dart';
 import '../meta/progression.dart';
 import '../render/palette.dart';
@@ -61,16 +62,23 @@ class Hud extends StatelessWidget {
   String _modeLine() {
     final e = engine;
     return switch (e.mode) {
-      RunMode.endless => 'STAGE ${e.world + 1} · ${worldName(e.world)}',
-      RunMode.daily =>
-        'DAILY CHALLENGE #${dailyNumber(dailyChallengeDay(DateTime.now().toUtc()))}',
-      RunMode.zen => 'ZEN · NO GAME OVER',
-      RunMode.rush => 'RUSH · BEST ${e.bestAtRunStart}',
-      RunMode.duel => 'DUEL · BEAT ${e.beatScore ?? 0}',
+      RunMode.endless => tr('STAGE {n} · {name}', {
+        'n': e.world + 1,
+        'name': worldName(e.world),
+      }),
+      RunMode.daily => tr('DAILY CHALLENGE #{n}', {
+        'n': dailyNumber(dailyChallengeDay(DateTime.now().toUtc())),
+      }),
+      RunMode.zen => tr('ZEN · NO GAME OVER'),
+      RunMode.rush => tr('RUSH · BEST {n}', {'n': e.bestAtRunStart}),
+      RunMode.duel => tr('DUEL · BEAT {n}', {'n': e.beatScore ?? 0}),
       RunMode.level =>
         level == null
-            ? 'LEVEL'
-            : 'LEVEL ${level!.number} · ${level!.title.toUpperCase()}',
+            ? tr('LEVEL')
+            : tr('LEVEL {n} · {title}', {
+                'n': level!.number,
+                'title': L10n.upper(level!.title),
+              }),
     };
   }
 
@@ -80,26 +88,26 @@ class Hud extends StatelessWidget {
     final chips = <Widget>[
       if (e.fever)
         _chip(
-          'FEVER x${e.config.fever.pointsMultiplier}',
+          tr('FEVER x{n}', {'n': e.config.fever.pointsMultiplier}),
           icon: Icons.local_fire_department_rounded,
           color: const Color(0xFFFF7A2F),
         ),
-      if (e.multiplier > 1) _chip('COMBO x${e.multiplier}'),
+      if (e.multiplier > 1) _chip(tr('COMBO x{n}', {'n': e.multiplier})),
       if (e.shield)
         _chip(
-          'SHIELD',
+          tr('SHIELD'),
           icon: Icons.shield_rounded,
           color: HuePalette.standard[1],
         ),
       if (e.slowRounds > 0)
         _chip(
-          'SLOW ${e.slowRounds}',
+          tr('SLOW {n}', {'n': e.slowRounds}),
           icon: Icons.hourglass_bottom_rounded,
           color: HuePalette.standard[3],
         ),
       if (e.wideRounds > 0)
         _chip(
-          'WIDE ${e.wideRounds}',
+          tr('WIDE {n}', {'n': e.wideRounds}),
           icon: Icons.open_in_full_rounded,
           color: HuePalette.standard[2],
         ),
@@ -157,14 +165,16 @@ class Hud extends StatelessWidget {
               if (target != null)
                 _LiveGoals(engine: e, theme: theme)
               else if (zen)
-                Text('HITS', style: hudLabel(theme))
+                Text(tr('HITS'), style: hudLabel(theme))
               else if (e.mode == RunMode.rush)
                 _RushClock(seconds: e.rushLeft.ceil(), theme: theme)
               else if (e.mode == RunMode.duel)
                 Text(
                   e.score > (e.beatScore ?? 0)
-                      ? 'AHEAD BY ${e.score - (e.beatScore ?? 0)}'
-                      : '${(e.beatScore ?? 0) - e.score + 1} TO WIN',
+                      ? tr('AHEAD BY {n}', {'n': e.score - (e.beatScore ?? 0)})
+                      : tr('{n} TO WIN', {
+                          'n': (e.beatScore ?? 0) - e.score + 1,
+                        }),
                   style: hudLabel(theme),
                 )
               else
@@ -226,18 +236,18 @@ class _BestLine extends StatelessWidget {
     final best = e.bestAtRunStart;
     if (e.newBestReached) {
       return Text(
-        'NEW BEST',
+        tr('NEW BEST'),
         style: hudLabel(theme).copyWith(color: coinColor),
       );
     }
     final gap = best - e.score + 1;
     if (best > 0 && e.score > 0 && gap <= math.max(10, best * 0.2)) {
       return Text(
-        '$gap TO BEAT YOUR BEST',
+        tr('{n} TO BEAT YOUR BEST', {'n': gap}),
         style: hudLabel(theme).copyWith(color: coinColor),
       );
     }
-    return Text('BEST $best', style: hudLabel(theme));
+    return Text(tr('BEST {n}', {'n': best}), style: hudLabel(theme));
   }
 }
 
@@ -248,7 +258,7 @@ class _BestLine extends StatelessWidget {
   final bossEvery = e.config.boss.every;
   final stageEvery = e.config.worlds.every;
   if (e.round?.spec.kind == RoundKind.boss) {
-    return ('BOSS ROUND', 1, HuePalette.standard[0]);
+    return (tr('BOSS ROUND'), 1, HuePalette.standard[0]);
   }
   if (bossEvery <= 0) return null;
   final toBoss = bossEvery - level % bossEvery;
@@ -257,13 +267,13 @@ class _BestLine extends StatelessWidget {
       : toBoss + 1;
   if (toBoss <= toStage) {
     return (
-      toBoss == 1 ? 'BOSS NEXT' : 'BOSS IN $toBoss',
+      toBoss == 1 ? tr('BOSS NEXT') : tr('BOSS IN {n}', {'n': toBoss}),
       1 - toBoss / bossEvery,
       HuePalette.standard[0],
     );
   }
   return (
-    'STAGE ${e.world + 2} IN $toStage',
+    tr('STAGE {stage} IN {n}', {'stage': e.world + 2, 'n': toStage}),
     1 - toStage / stageEvery,
     HuePalette.standard[3],
   );
@@ -336,8 +346,10 @@ class _LiveGoals extends StatelessWidget {
             Text(
               switch (g.type) {
                 GoalType.shield => g.shortText,
-                GoalType.combo =>
-                  'COMBO x${math.min(g.value(now), g.target)}/x${g.target}',
+                GoalType.combo => tr('COMBO x{n}/x{target}', {
+                  'n': math.min(g.value(now), g.target),
+                  'target': g.target,
+                }),
                 _ =>
                   '${g.shortText} ${math.min(g.value(now), g.target)}/${g.target}',
               },

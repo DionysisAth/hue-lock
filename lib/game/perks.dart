@@ -1,4 +1,5 @@
 import '../core/seeded_random.dart';
+import '../l10n/l10n.dart';
 
 /// Run perks: after every boss round the player picks one of three. They
 /// last until the run ends (a continue keeps them).
@@ -12,10 +13,12 @@ enum Perk {
   keeper('Combo Saver', 'A Good only drops your combo one step', maxStacks: 1),
   greed('Greed', '+50% points, but zones 10% smaller', maxStacks: 2);
 
-  const Perk(this.title, this.description, {required this.maxStacks});
+  const Perk(this.titleEn, this.descriptionEn, {required this.maxStacks});
 
-  final String title;
-  final String description;
+  final String titleEn;
+  final String descriptionEn;
+  String get title => tr(titleEn);
+  String get description => tr(descriptionEn);
   final int maxStacks;
 }
 

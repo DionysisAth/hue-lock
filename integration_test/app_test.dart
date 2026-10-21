@@ -175,6 +175,8 @@ void main() {
     // 8. Settings: turn on colorblind mode, then play with it.
     await tester.tap(find.byTooltip('Settings'));
     await waitFor(tester, find.text('Colorblind mode'));
+    await tester.ensureVisible(find.text('Colorblind mode'));
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('Colorblind mode'));
     await waitMs(tester, 200);
     await tester.pageBack();

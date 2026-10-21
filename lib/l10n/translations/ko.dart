@@ -1,0 +1,1 @@
+const textKo = <String, String>{};

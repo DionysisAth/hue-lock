@@ -3,6 +3,8 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../l10n/l10n.dart';
+
 /// Opt-in daily reminder that a new Daily Challenge is live. Scheduled on
 /// the device (no push server).
 class ReminderService {
@@ -59,17 +61,19 @@ class ReminderService {
       if (!granted) return false;
       await _plugin.periodicallyShow(
         id: _id,
-        title: 'New Daily Challenge',
-        body: 'A fresh Hue Lock challenge is live. Keep your streak going!',
+        title: tr('New Daily Challenge'),
+        body: tr('A fresh Hue Lock challenge is live. Keep your streak going!'),
         repeatInterval: RepeatInterval.daily,
-        notificationDetails: const NotificationDetails(
+        notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             'daily',
-            'Daily Challenge',
-            channelDescription: 'A reminder when a new Daily Challenge is live',
+            tr('Daily Challenge'),
+            channelDescription: tr(
+              'A reminder when a new Daily Challenge is live',
+            ),
             importance: Importance.defaultImportance,
           ),
-          iOS: DarwinNotificationDetails(),
+          iOS: const DarwinNotificationDetails(),
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       );

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import '../meta/progression.dart';
 import '../render/game_painter.dart';
 import '../render/palette.dart';
@@ -132,13 +133,15 @@ class _HomeOverlayState extends State<HomeOverlay>
                         GameTitle(theme: theme),
                         const SizedBox(height: 10),
                         Text(
-                          'BEST ${p.bestScore}',
+                          tr('BEST {n}', {'n': p.bestScore}),
                           style: hudLabel(theme, size: 16),
                         ),
                         if (widget.weeklyRank != null) ...[
                           const SizedBox(height: 4),
                           Text(
-                            '#${widget.weeklyRank!.rank} THIS WEEK',
+                            tr('#{rank} THIS WEEK', {
+                              'rank': widget.weeklyRank!.rank,
+                            }),
                             style: hudLabel(
                               theme,
                               size: 13,
@@ -159,7 +162,7 @@ class _HomeOverlayState extends State<HomeOverlay>
                 child: FadeTransition(
                   opacity: Tween(begin: 0.35, end: 1.0).animate(_pulse),
                   child: Text(
-                    'TAP TO PLAY',
+                    tr('TAP TO PLAY'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: theme.text,
@@ -186,14 +189,14 @@ class _HomeOverlayState extends State<HomeOverlay>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             _ModeButton(
-                              label: 'LEVELS',
+                              label: tr('LEVELS'),
                               icon: Icons.school_rounded,
                               color: HuePalette.standard[3],
                               theme: theme,
                               onTap: widget.onLevels,
                             ),
                             _ModeButton(
-                              label: 'DAILY',
+                              label: tr('DAILY'),
                               icon: Icons.today_rounded,
                               color: HuePalette.standard[2],
                               theme: theme,
@@ -201,21 +204,21 @@ class _HomeOverlayState extends State<HomeOverlay>
                               onTap: widget.onDaily,
                             ),
                             _ModeButton(
-                              label: 'RUSH',
+                              label: tr('RUSH'),
                               icon: Icons.timer_rounded,
                               color: const Color(0xFFFF7A2F),
                               theme: theme,
                               onTap: widget.onRush,
                             ),
                             _ModeButton(
-                              label: 'ZEN',
+                              label: tr('ZEN'),
                               icon: Icons.self_improvement_rounded,
                               color: HuePalette.standard[1],
                               theme: theme,
                               onTap: widget.onZen,
                             ),
                             _ModeButton(
-                              label: 'DUEL',
+                              label: tr('DUEL'),
                               icon: Icons.sports_kabaddi_rounded,
                               color: HuePalette.standard[0],
                               theme: theme,
@@ -229,13 +232,13 @@ class _HomeOverlayState extends State<HomeOverlay>
                           children: [
                             _IconAction(
                               icon: Icons.palette_rounded,
-                              tooltip: 'Shop',
+                              tooltip: tr('Shop'),
                               theme: theme,
                               onTap: widget.onShop,
                             ),
                             _IconAction(
                               icon: Icons.emoji_events_rounded,
-                              tooltip: 'Progress',
+                              tooltip: tr('Progress'),
                               theme: theme,
                               badge: widget.progressBadge,
                               onTap: widget.onProgress,
@@ -243,19 +246,19 @@ class _HomeOverlayState extends State<HomeOverlay>
                             if (widget.showLeaderboards)
                               _IconAction(
                                 icon: Icons.leaderboard_rounded,
-                                tooltip: 'Leaderboards',
+                                tooltip: tr('Leaderboards'),
                                 theme: theme,
                                 onTap: widget.onLeaderboards,
                               ),
                             _IconAction(
                               icon: Icons.help_outline_rounded,
-                              tooltip: 'How to play',
+                              tooltip: tr('How to play'),
                               theme: theme,
                               onTap: widget.onHelp,
                             ),
                             _IconAction(
                               icon: Icons.tune_rounded,
-                              tooltip: 'Settings',
+                              tooltip: tr('Settings'),
                               theme: theme,
                               onTap: widget.onSettings,
                             ),
@@ -491,7 +494,7 @@ class _LevelBadge extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Text('LEVEL', style: hudLabel(theme, size: 12)),
+        Text(tr('LEVEL'), style: hudLabel(theme, size: 12)),
       ],
     );
   }
@@ -538,13 +541,20 @@ class _ModeButton extends StatelessWidget {
                     children: [
                       Icon(icon, color: color, size: 26),
                       const SizedBox(height: 4),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          color: theme.text,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                          letterSpacing: 1,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            style: TextStyle(
+                              color: theme.text,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              letterSpacing: 1,
+                            ),
+                          ),
                         ),
                       ),
                     ],

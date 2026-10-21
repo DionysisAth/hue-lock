@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'config/game_config.dart';
+import 'l10n/l10n.dart';
 import 'meta/levels.dart';
 import 'services/ads_service.dart';
 import 'services/analytics.dart';
@@ -127,10 +129,63 @@ class Services extends InheritedWidget {
   bool updateShouldNotify(Services old) => old.services != services;
 }
 
-class HueLockApp extends StatelessWidget {
+class HueLockApp extends StatefulWidget {
   const HueLockApp({super.key, required this.services});
 
   final AppServices services;
+
+  @override
+  State<HueLockApp> createState() => _HueLockAppState();
+}
+
+class _HueLockAppState extends State<HueLockApp> with WidgetsBindingObserver {
+  AppServices get services => widget.services;
+
+  @override
+  void initState() {
+    super.initState();
+    _applyLanguage(rebuild: false);
+    services.profile.addListener(_applyLanguage);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    services.profile.removeListener(_applyLanguage);
+    super.dispose();
+  }
+
+  /// The phone's language changed while the app was open.
+  @override
+  void didChangeLocales(List<Locale>? locales) => _applyLanguage();
+
+  /// Uses the language picked in Settings, else the phone's own language
+  /// (the first one the app supports).
+  void _applyLanguage({bool rebuild = true}) {
+    final chosen = services.profile.profile.language;
+    final code = L10n.languages.containsKey(chosen)
+        ? chosen
+        : L10n.pick(WidgetsBinding.instance.platformDispatcher.locales);
+    if (code == L10n.lang) return;
+    L10n.use(code);
+    if (!rebuild || !mounted) return;
+    setState(() {});
+    // Text is looked up while building, so every widget rebuilds once.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      void mark(Element e) {
+        e.markNeedsBuild();
+        e.visitChildren(mark);
+      }
+
+      (context as Element).visitChildren(mark);
+    });
+    // The daily reminder's text is fixed when it is scheduled.
+    if (services.profile.profile.dailyReminder) {
+      services.reminders.setDailyReminder(true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -139,6 +194,9 @@ class HueLockApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Hue Lock',
         debugShowCheckedModeBanner: false,
+        locale: Locale(L10n.lang),
+        supportedLocales: L10n.locales,
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         theme: ThemeData(
           brightness: Brightness.dark,
           colorScheme: ColorScheme.fromSeed(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app.dart';
+import '../l10n/l10n.dart';
 import '../render/palette.dart';
 import '../render/ring_themes.dart';
 import 'hud.dart';
@@ -9,7 +10,8 @@ import 'hud.dart';
 class HowToPlayScreen extends StatelessWidget {
   const HowToPlayScreen({super.key});
 
-  static const _sections = <(String, List<(IconData, int, String, String)>)>[
+  /// Sections of (title, [(icon, color, name, text)]), in English.
+  static const sections = <(String, List<(IconData, int, String, String)>)>[
     (
       'THE BASICS',
       [
@@ -200,18 +202,18 @@ class HowToPlayScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: theme.bgTop,
         foregroundColor: theme.text,
-        title: const Text(
-          'HOW TO PLAY',
+        title: Text(
+          tr('HOW TO PLAY'),
           style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 3),
         ),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
         children: [
-          for (final (title, items) in _sections) ...[
+          for (final (title, items) in sections) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 18, 8, 6),
-              child: Text(title, style: hudLabel(theme, size: 13)),
+              child: Text(tr(title), style: hudLabel(theme, size: 13)),
             ),
             for (final (icon, color, name, text) in items)
               ListTile(
@@ -222,14 +224,14 @@ class HowToPlayScreen extends StatelessWidget {
                   child: Icon(icon, color: HuePalette.standard[color]),
                 ),
                 title: Text(
-                  name,
+                  tr(name),
                   style: TextStyle(
                     color: theme.text,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 subtitle: Text(
-                  text,
+                  tr(text),
                   style: TextStyle(color: theme.subtleText, height: 1.3),
                 ),
               ),

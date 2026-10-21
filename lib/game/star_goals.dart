@@ -1,3 +1,4 @@
+import '../l10n/l10n.dart';
 import 'game_engine.dart';
 
 enum GoalType {
@@ -32,35 +33,34 @@ class StarGoal {
   final GoalType type;
   final int target;
 
-  String get text => switch (type) {
-    GoalType.perfects => 'Hit $target Perfects',
-    GoalType.streak => '$target Perfects in a row',
-    GoalType.ratio => '$target% Perfect hits',
-    GoalType.greedy =>
-      target == 1 ? 'Hit a gold zone' : 'Hit $target gold zones',
-    GoalType.fevers =>
-      target == 1 ? 'Trigger Fever' : 'Trigger Fever $target times',
-    GoalType.combo => 'Reach combo x$target',
-    GoalType.focus => target == 1 ? 'Use Focus' : 'Use Focus $target times',
-    GoalType.holds =>
-      target == 1 ? 'Clear a hold zone' : 'Clear $target hold zones',
-    GoalType.powerUps =>
-      target == 1 ? 'Collect a power-up' : 'Collect $target power-ups',
-    GoalType.shield => 'Finish with a shield',
-  };
+  String get text {
+    final n = {'n': target};
+    return switch (type) {
+      GoalType.perfects => tr('Hit {n} Perfects', n),
+      GoalType.streak => tr('{n} Perfects in a row', n),
+      GoalType.ratio => tr('{n}% Perfect hits', n),
+      GoalType.greedy => tr('Hit {n} gold zones', n),
+      GoalType.fevers => tr('Trigger Fever {n} times', n),
+      GoalType.combo => tr('Reach combo x{n}', n),
+      GoalType.focus => tr('Use Focus {n} times', n),
+      GoalType.holds => tr('Clear {n} hold zones', n),
+      GoalType.powerUps => tr('Collect {n} power-ups', n),
+      GoalType.shield => tr('Finish with a shield'),
+    };
+  }
 
   /// A few words for the in-run HUD.
   String get shortText => switch (type) {
-    GoalType.perfects => 'PERFECTS',
-    GoalType.streak => 'IN A ROW',
-    GoalType.ratio => 'PERFECT %',
-    GoalType.greedy => 'GOLD',
-    GoalType.fevers => 'FEVER',
-    GoalType.combo => 'COMBO',
-    GoalType.focus => 'FOCUS',
-    GoalType.holds => 'HOLDS',
-    GoalType.powerUps => 'POWER-UPS',
-    GoalType.shield => 'SHIELD',
+    GoalType.perfects => tr('PERFECTS'),
+    GoalType.streak => tr('IN A ROW'),
+    GoalType.ratio => tr('PERFECT %'),
+    GoalType.greedy => tr('GOLD'),
+    GoalType.fevers => tr('FEVER'),
+    GoalType.combo => tr('COMBO'),
+    GoalType.focus => tr('FOCUS'),
+    GoalType.holds => tr('HOLDS'),
+    GoalType.powerUps => tr('POWER-UPS'),
+    GoalType.shield => tr('SHIELD'),
   };
 
   /// Progress so far in [s] (compare with [target]).

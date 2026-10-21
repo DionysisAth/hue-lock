@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app.dart';
+import '../l10n/l10n.dart';
 import '../meta/levels.dart';
 import '../render/ball_skins.dart';
 import '../render/palette.dart';
@@ -59,8 +60,8 @@ class _LevelsScreenState extends State<LevelsScreen> {
       appBar: AppBar(
         backgroundColor: theme.bgTop,
         foregroundColor: theme.text,
-        title: const Text(
-          'LEVELS',
+        title: Text(
+          tr('LEVELS'),
           style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 3),
         ),
         actions: [
@@ -216,10 +217,12 @@ class _ChapterHeader extends StatelessWidget {
   String get _reward {
     final r = chapter.reward;
     return [
-      if (r.ball != null) '${ballSkinById(r.ball!).name} ball',
-      if (r.theme != null) '${ringThemeById(r.theme!).name} ring',
-      if (r.coins > 0) '${r.coins} coins',
-      if (r.tokens > 0) '${r.tokens} token${r.tokens == 1 ? '' : 's'}',
+      if (r.ball != null)
+        tr('{name} ball', {'name': ballSkinById(r.ball!).name}),
+      if (r.theme != null)
+        tr('{name} ring', {'name': ringThemeById(r.theme!).name}),
+      if (r.coins > 0) tr('{n} coins', {'n': r.coins}),
+      if (r.tokens > 0) tr('{n} tokens', {'n': r.tokens}),
     ].join(' + ');
   }
 
@@ -240,12 +243,12 @@ class _ChapterHeader extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'CHAPTER ${chapter.number}',
+                  tr('CHAPTER {n}', {'n': chapter.number}),
                   style: hudLabel(theme, size: 11),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  open ? chapter.title.toUpperCase() : '???',
+                  open ? L10n.upper(chapter.title) : '???',
                   style: TextStyle(
                     color: theme.text,
                     fontSize: 20,
@@ -504,7 +507,10 @@ Future<bool?> showLevelIntro(
     builder: (context) => AlertDialog(
       backgroundColor: theme.bgTop,
       title: Text(
-        'LEVEL ${level.number} · ${level.title.toUpperCase()}',
+        tr('LEVEL {n} · {title}', {
+          'n': level.number,
+          'title': L10n.upper(level.title),
+        }),
         style: TextStyle(color: theme.text, fontWeight: FontWeight.w900),
       ),
       content: Column(
@@ -517,7 +523,7 @@ Future<bool?> showLevelIntro(
           ),
           const SizedBox(height: 10),
           goalLine(
-            'Clear ${level.targets} targets without missing',
+            tr('Clear {n} targets without missing', {'n': level.targets}),
             goalsMet & 1 != 0,
           ),
           for (var i = 0; i < level.goals.length; i++)
@@ -527,11 +533,11 @@ Future<bool?> showLevelIntro(
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: const Text('Back'),
+          child: Text(tr('Back')),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(context, true),
-          child: const Text('PLAY'),
+          child: Text(tr('PLAY')),
         ),
       ],
     ),

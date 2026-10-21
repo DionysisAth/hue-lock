@@ -1,13 +1,16 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import '../l10n/l10n.dart';
+
 /// A cosmetic ball skin. The ball always shows the target color as its main
 /// fill; skins only add decoration on top, so readability never suffers.
 class BallSkin {
-  const BallSkin(this.id, this.name, this.price, this._paint);
+  const BallSkin(this.id, this.nameEn, this.price, this._paint);
 
   final String id;
-  final String name;
+  final String nameEn;
+  String get name => tr(nameEn);
   final int price;
   final void Function(Canvas canvas, Offset c, double r, Color color, double t)
   _paint;

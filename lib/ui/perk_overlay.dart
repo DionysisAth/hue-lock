@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../game/game_engine.dart';
 import '../game/perks.dart';
+import '../l10n/l10n.dart';
 import '../render/palette.dart';
 import '../render/ring_themes.dart';
 import 'hud.dart';
@@ -62,7 +63,7 @@ class PerkOverlay extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'BOSS CLEARED',
+                    tr('BOSS CLEARED'),
                     style: TextStyle(
                       color: HuePalette.standard[3],
                       fontSize: 26,
@@ -72,7 +73,7 @@ class PerkOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'PICK A PERK FOR THIS RUN',
+                    tr('PICK A PERK FOR THIS RUN'),
                     style: hudLabel(
                       theme,
                       size: 13,
@@ -163,8 +164,8 @@ class _PerkCard extends StatelessWidget {
                       children: [
                         Text(
                           stacks > 0
-                              ? '${perk.title.toUpperCase()} +1'
-                              : perk.title.toUpperCase(),
+                              ? '${L10n.upper(perk.title)} +1'
+                              : L10n.upper(perk.title),
                           style: TextStyle(
                             color: color,
                             fontSize: 17,

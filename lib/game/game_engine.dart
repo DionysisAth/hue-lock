@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../config/game_config.dart';
 import '../core/angles.dart';
+import '../l10n/l10n.dart';
 import 'effects.dart';
 import 'hit_judge.dart';
 import 'perks.dart';
@@ -33,7 +34,7 @@ enum GamePhase {
 const worldNames = ['DAWN', 'NEON REEF', 'EMBER', 'AURORA', 'NEBULA', 'VOID'];
 
 String worldName(int world) {
-  final name = worldNames[world % worldNames.length];
+  final name = tr(worldNames[world % worldNames.length]);
   return world >= worldNames.length ? '$name+' : name;
 }
 
@@ -63,8 +64,8 @@ const streakWords = {
 };
 
 String? streakWord(int streak) {
-  if (streakWords.containsKey(streak)) return streakWords[streak];
-  if (streak > 20 && streak % 5 == 0) return 'UNREAL!';
+  if (streakWords.containsKey(streak)) return tr(streakWords[streak]!);
+  if (streak > 20 && streak % 5 == 0) return tr('UNREAL!');
   return null;
 }
 
@@ -707,8 +708,8 @@ class GameEngine extends ChangeNotifier {
         if (_bossPreview && !_bossGoShown && _bossInGo) {
           _bossGoShown = true;
           effects.banner = Announcement(
-            'GO!',
-            subtitle: 'hit them in order',
+            tr('GO!'),
+            subtitle: tr('hit them in order'),
             life: config.boss.goDelay + 0.6,
           );
         }
@@ -887,7 +888,11 @@ class GameEngine extends ChangeNotifier {
         !seen.contains('focus')) {
       _markSeen('focus');
       final (title, subtitle) = intros['focus']!;
-      effects.banner = Announcement(title, subtitle: subtitle, life: 2.6);
+      effects.banner = Announcement(
+        tr(title),
+        subtitle: tr(subtitle),
+        life: 2.6,
+      );
     }
   }
 
@@ -992,20 +997,26 @@ class GameEngine extends ChangeNotifier {
       );
     }
     if (zone.isBonus) {
-      effects.texts.add(FloatingText('GREEDY +$points', zone.color, big: true));
+      effects.texts.add(
+        FloatingText(tr('GREEDY +{n}', {'n': points}), zone.color, big: true),
+      );
     } else if (perfect) {
       effects.texts.add(
         FloatingText(
-          multiplier > 1 ? 'PERFECT x$multiplier' : 'PERFECT',
+          multiplier > 1
+              ? tr('PERFECT x{n}', {'n': multiplier})
+              : tr('PERFECT'),
           zone.color,
           big: true,
         ),
       );
     }
     if (multiplier < multiplierBefore && multiplier > 1) {
-      effects.texts.add(FloatingText('COMBO SAVED x$multiplier', 2));
+      effects.texts.add(
+        FloatingText(tr('COMBO SAVED x{n}', {'n': multiplier}), 2),
+      );
     } else if (multiplier < multiplierBefore && multiplierBefore >= 3) {
-      effects.texts.add(FloatingText('COMBO LOST', -1));
+      effects.texts.add(FloatingText(tr('COMBO LOST'), -1));
       _emit(ComboLostEvent(multiplierBefore));
     }
     if (multiplier > multiplierBefore) {
@@ -1019,7 +1030,9 @@ class GameEngine extends ChangeNotifier {
       effects.texts.add(FloatingText(word, zone.color, life: 1.0, huge: true));
       _emit(StreakEvent(word, perfectStreak));
     }
-    if (coinBonus > 0) effects.texts.add(FloatingText('+$coinBonus coins', -1));
+    if (coinBonus > 0) {
+      effects.texts.add(FloatingText(tr('+{n} coins', {'n': coinBonus}), -1));
+    }
 
     if (perfect && !fever && perfectStreak >= feverGoal) {
       fever = true;
@@ -1028,8 +1041,8 @@ class GameEngine extends ChangeNotifier {
         Shockwave(0, 0, zone.color, maxRadius: 2.6, life: 0.8, width: 0.08),
       );
       effects.banner = Announcement(
-        'FEVER!',
-        subtitle: 'x${config.fever.pointsMultiplier} points',
+        tr('FEVER!'),
+        subtitle: tr('x{n} points', {'n': config.fever.pointsMultiplier}),
         color: zone.color,
         life: 1.2,
       );
@@ -1054,7 +1067,9 @@ class GameEngine extends ChangeNotifier {
     );
     if (!newBestReached && bestAtRunStart > 0 && score > bestAtRunStart) {
       newBestReached = true;
-      effects.texts.add(FloatingText('NEW BEST!', -1, life: 1.2, big: true));
+      effects.texts.add(
+        FloatingText(tr('NEW BEST!'), -1, life: 1.2, big: true),
+      );
       effects.confetti();
       _emit(NewBestEvent(score));
     }
@@ -1085,7 +1100,7 @@ class GameEngine extends ChangeNotifier {
     if (boss) {
       score += config.boss.clearBonus;
       effects.banner = Announcement(
-        'BOSS CLEARED',
+        tr('BOSS CLEARED'),
         subtitle: '+${config.boss.clearBonus}',
         life: 1.3,
       );
@@ -1100,7 +1115,9 @@ class GameEngine extends ChangeNotifier {
       if (setSize > 1) {
         final bonus = setSize * config.setBonusPerLock;
         score += bonus;
-        effects.texts.add(FloatingText('UNLOCKED +$bonus', -1, big: true));
+        effects.texts.add(
+          FloatingText(tr('UNLOCKED +{n}', {'n': bonus}), -1, big: true),
+        );
         _emit(SetClearedEvent(setSize, bonus));
       }
       _newSet();
@@ -1109,7 +1126,7 @@ class GameEngine extends ChangeNotifier {
     if (w != world) {
       world = w;
       effects.banner = Announcement(
-        'STAGE ${w + 1}',
+        tr('STAGE {n}', {'n': w + 1}),
         subtitle: worldName(w),
         life: 1.8,
       );
@@ -1177,7 +1194,7 @@ class GameEngine extends ChangeNotifier {
     perkOffer = null;
     perks.add(perk);
     if (perk == Perk.shield) shield = true;
-    effects.texts.add(FloatingText(perk.title.toUpperCase(), 2, big: true));
+    effects.texts.add(FloatingText(L10n.upper(perk.title), 2, big: true));
     _emit(PerkChosenEvent(perk));
     _setPhase(GamePhase.playing);
     _nextRound(r, time);
@@ -1207,13 +1224,13 @@ class GameEngine extends ChangeNotifier {
     switch (p) {
       case PowerUp.shield:
         shield = true;
-        effects.texts.add(FloatingText('SHIELD', -1, big: true));
+        effects.texts.add(FloatingText(tr('SHIELD'), -1, big: true));
       case PowerUp.slow:
         slowRounds = c.slowRounds;
-        effects.texts.add(FloatingText('SLOW-MO', -1, big: true));
+        effects.texts.add(FloatingText(tr('SLOW-MO'), -1, big: true));
       case PowerUp.wide:
         wideRounds = c.wideRounds;
-        effects.texts.add(FloatingText('WIDE', -1, big: true));
+        effects.texts.add(FloatingText(tr('WIDE'), -1, big: true));
     }
     _emit(PowerUpEvent(p));
   }
@@ -1293,8 +1310,8 @@ class GameEngine extends ChangeNotifier {
         boss: true,
       );
       effects.banner = Announcement(
-        'BOSS ROUND',
-        subtitle: firstBoss ? intros['boss']!.$2 : 'watch the colors',
+        tr('BOSS ROUND'),
+        subtitle: firstBoss ? tr(intros['boss']!.$2) : tr('watch the colors'),
         life: _bossIntro + 0.2,
       );
       _emit(const BossEvent(cleared: false));
@@ -1334,8 +1351,8 @@ class GameEngine extends ChangeNotifier {
     final (title, subtitle) = intros[banner]!;
     final color = banner == 'not' ? spec.ballColors.first : -1;
     effects.banner = Announcement(
-      title,
-      subtitle: subtitle,
+      tr(title),
+      subtitle: tr(subtitle),
       color: color,
       life: (bannerIsNew ? 2.4 : 1.0) + 0.4,
     );
@@ -1378,7 +1395,9 @@ class GameEngine extends ChangeNotifier {
       _multiplierBase = 1;
       _endFever();
       effects.shake = 0.4;
-      effects.texts.add(FloatingText(j.timeout ? 'MISSED IT' : 'MISS', -1));
+      effects.texts.add(
+        FloatingText(j.timeout ? tr('MISSED IT') : tr('MISS'), -1),
+      );
       _emit(const ZenMissEvent());
       _startRound(
         pointer: r.pointerAngleAt(t),
@@ -1413,8 +1432,8 @@ class GameEngine extends ChangeNotifier {
       // A moment to recover before the pointer moves again.
       if (phase != GamePhase.countdown) _hold(config.announce.shield);
       effects.banner = Announcement(
-        'SHIELD SAVED YOU',
-        subtitle: 'get ready',
+        tr('SHIELD SAVED YOU'),
+        subtitle: tr('get ready'),
         color: 1,
         life: config.announce.shield + 0.3,
       );
@@ -1430,7 +1449,11 @@ class GameEngine extends ChangeNotifier {
       rushLeft = math.max(0, rushLeft - config.rush.missPenalty);
       effects.shake = 0.5;
       effects.texts.add(
-        FloatingText('-${config.rush.missPenalty.round()}s', 0, big: true),
+        FloatingText(
+          tr('-{n}s', {'n': config.rush.missPenalty.round()}),
+          0,
+          big: true,
+        ),
       );
       _emit(const RushMissEvent());
       if (rushLeft <= 0) {
