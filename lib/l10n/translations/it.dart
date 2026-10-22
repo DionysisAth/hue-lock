@@ -230,6 +230,7 @@ const textIt = <String, String>{
   'LEVEL {n} · {title}': 'LIVELLO {n} · {title}',
   'LEVELS': 'LIVELLI',
   'LEVELS REWARD': 'PREMIO LIVELLI',
+  'LEVEL|player': 'LIVELLO',
   'Language': 'Lingua',
   'Laser Focus': 'Focus laser',
   'Leaderboard': 'Classifica',

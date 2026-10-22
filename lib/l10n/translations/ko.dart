@@ -225,6 +225,7 @@ const textKo = <String, String>{
   'LEVEL {n} · {title}': '레벨 {n} · {title}',
   'LEVELS': '레벨',
   'LEVELS REWARD': '레벨 보상',
+  'LEVEL|player': '레벨',
   'Language': '언어',
   'Laser Focus': '레이저 포커스',
   'Leaderboard': '순위표',

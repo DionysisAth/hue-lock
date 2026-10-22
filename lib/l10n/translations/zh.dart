@@ -226,6 +226,7 @@ const textZh = <String, String>{
   'LEVEL {n} · {title}': '关卡 {n} · {title}',
   'LEVELS': '关卡',
   'LEVELS REWARD': '关卡奖励',
+  'LEVEL|player': '等级',
   'Language': '语言',
   'Laser Focus': '极度专注',
   'Leaderboard': '排行榜',

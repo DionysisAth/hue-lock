@@ -494,7 +494,7 @@ class _LevelBadge extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Text(tr('LEVEL'), style: hudLabel(theme, size: 12)),
+        Text(tr('LEVEL|player'), style: hudLabel(theme, size: 12)),
       ],
     );
   }

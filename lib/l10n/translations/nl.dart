@@ -232,6 +232,7 @@ const textNl = <String, String>{
   'LEVEL {n} · {title}': 'LEVEL {n} · {title}',
   'LEVELS': 'LEVELS',
   'LEVELS REWARD': 'LEVELBELONING',
+  'LEVEL|player': 'NIVEAU',
   'Language': 'Taal',
   'Laser Focus': 'Laserfocus',
   'Leaderboard': 'Ranglijst',

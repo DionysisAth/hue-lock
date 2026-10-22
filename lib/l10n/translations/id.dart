@@ -230,6 +230,7 @@ const textId = <String, String>{
   'LEVEL {n} · {title}': 'LEVEL {n} · {title}',
   'LEVELS': 'LEVEL',
   'LEVELS REWARD': 'HADIAH LEVEL',
+  'LEVEL|player': 'LEVEL',
   'Language': 'Bahasa',
   'Laser Focus': 'Fokus Laser',
   'Leaderboard': 'Papan Peringkat',

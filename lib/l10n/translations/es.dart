@@ -231,6 +231,7 @@ const textEs = <String, String>{
   'LEVEL {n} · {title}': 'NIVEL {n} · {title}',
   'LEVELS': 'NIVELES',
   'LEVELS REWARD': 'PREMIO DE NIVELES',
+  'LEVEL|player': 'NIVEL',
   'Language': 'Idioma',
   'Laser Focus': 'Foco láser',
   'Leaderboard': 'Clasificación',

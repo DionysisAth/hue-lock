@@ -1,5 +1,7 @@
 /// English plural forms (other English text is its own key).
 const textEn = <String, String>{
+  // The player's level badge ("LEVEL" alone means a map level).
+  'LEVEL|player': 'LEVEL',
   'Hit {n} Perfects': '{n, plural, =1{Hit a Perfect} other{Hit # Perfects}}',
   'Hit {n} gold zones':
       '{n, plural, =1{Hit a gold zone} other{Hit # gold zones}}',

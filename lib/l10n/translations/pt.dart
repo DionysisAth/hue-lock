@@ -228,6 +228,7 @@ const textPt = <String, String>{
   'LEVEL {n} · {title}': 'FASE {n} · {title}',
   'LEVELS': 'FASES',
   'LEVELS REWARD': 'RECOMPENSA DAS FASES',
+  'LEVEL|player': 'NÍVEL',
   'Language': 'Idioma',
   'Laser Focus': 'Foco total',
   'Leaderboard': 'Ranking',

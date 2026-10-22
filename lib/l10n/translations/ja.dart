@@ -225,6 +225,7 @@ const textJa = <String, String>{
   'LEVEL {n} · {title}': 'レベル{n} · {title}',
   'LEVELS': 'レベル',
   'LEVELS REWARD': 'レベル報酬',
+  'LEVEL|player': 'レベル',
   'Language': '言語',
   'Laser Focus': '極限集中',
   'Leaderboard': 'ランキング',
