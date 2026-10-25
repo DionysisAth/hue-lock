@@ -136,3 +136,7 @@ players who sign in:
   AdMob, and the manifest already includes the permission via the AdMob SDK.
 - **Government app / financial features / health:** No.
 - **News app:** No.
+
+## Promo video
+
+https://www.youtube.com/watch?v=DVWHT4vmAyQ (set on every store language; made with tool/make_promo_video.py)
