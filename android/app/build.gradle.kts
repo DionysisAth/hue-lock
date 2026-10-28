@@ -3,6 +3,8 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
+    // Firebase config (android/app/google-services.json).
+    id("com.google.gms.google-services")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -77,4 +79,7 @@ dependencies {
     // Play Games Services v2 (leaderboards, achievements, cloud save).
     // Only initialized once res/values/games-ids.xml has a real project id.
     implementation("com.google.android.gms:play-services-games-v2:21.0.0")
+    // Firebase (the Flutter firebase_* packages use the same BoM).
+    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
+    implementation("com.google.firebase:firebase-analytics")
 }

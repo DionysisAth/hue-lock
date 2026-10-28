@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "62524797111",
+    "project_id": "hue-lock",
+    "storage_bucket": "hue-lock.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:62524797111:android:47769a3093aa5984ed5d32",
+        "android_client_info": {
+          "package_name": "com.nwbn.huelock"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBK_6RBjcm8_Z0LC_A4kaEum0f7zphML4Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

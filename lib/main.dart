@@ -1,5 +1,7 @@
 import 'dart:io' show Platform;
 
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -21,12 +23,16 @@ Future<void> main() async {
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
   final mobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
-  final (config, profile, analytics, levels) = await (
+  final (config, profile, local, levels, firebase) = await (
     GameConfig.load(),
     ProfileStore.load(),
     LocalAnalytics.load(),
     loadLevels(),
+    _initFirebase(),
   ).wait;
+  final Analytics analytics = firebase == null
+      ? local
+      : FirebaseEventsAnalytics(local, firebase);
 
   final services = AppServices(
     config: config,
@@ -47,4 +53,26 @@ Future<void> main() async {
   WidgetsBinding.instance.addPostFrameCallback(
     (_) => services.startBackground(),
   );
+}
+
+/// Firebase Analytics, Android only (its config is
+/// android/app/google-services.json). Never blocks the game: null if it
+/// can't start.
+Future<FirebaseAnalytics?> _initFirebase() async {
+  if (kIsWeb || !Platform.isAndroid) return null;
+  try {
+    await Firebase.initializeApp();
+    final analytics = FirebaseAnalytics.instance;
+    // Usage stats only: nothing from Firebase is used for ads.
+    await analytics.setConsent(
+      analyticsStorageConsentGranted: true,
+      adStorageConsentGranted: false,
+      adUserDataConsentGranted: false,
+      adPersonalizationSignalsConsentGranted: false,
+    );
+    return analytics;
+  } catch (e) {
+    debugPrint('Firebase unavailable: $e');
+    return null;
+  }
 }
